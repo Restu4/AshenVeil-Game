@@ -79,6 +79,10 @@ class CombatUI:
     def draw_enemy(self, target: pygame.Surface, enemy) -> None:
         if enemy is None:
             return
+        # Bosses have their own wide bar; never draw the small engaged panel
+        # on top of it.
+        if getattr(enemy, "is_boss", False):
+            return
         x, y = ENEMY_X, ENEMY_Y
         target.blit(self._enemy_panel, (x, y))
         name = getattr(enemy, "name", getattr(enemy, "NAME", "ENEMY"))
@@ -121,6 +125,8 @@ class CombatUI:
         player = combat.player
         for enemy in combat.enemies:
             if not enemy.alive:
+                continue
+            if getattr(enemy, "is_boss", False):
                 continue
             distance = abs(enemy.x - player.x) + abs(enemy.y - player.y)
             damaged = enemy.health.current < enemy.health.maximum - 0.01

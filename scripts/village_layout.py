@@ -55,6 +55,35 @@ class Light:
 
 PLAZA = (1600.0, 1300.0, 396.0, 286.0)
 
+# ---------------------------------------------------------------------------
+# The Hollow Guardian's arena.  It lives in the north-east corner of the same
+# world, beyond the graveyard, so it can reuse the baked ground and the shared
+# camera/collision systems.  Props inside this rectangle are stripped from the
+# village layout and replaced with the ruined-shrine set below.
+# ---------------------------------------------------------------------------
+ARENA_X0, ARENA_Y0, ARENA_X1, ARENA_Y1 = 2240, 168, 3036, 756
+ARENA_RECT = (ARENA_X0, ARENA_Y0, ARENA_X1, ARENA_Y1)
+ARENA_CENTER = (2638.0, 462.0)
+ARENA_PLAYER_SPAWN = (2638.0, 682.0)
+ARENA_BOSS_SPAWN = (2638.0, 372.0)
+ARENA_PLAYER_BOUNDS = (2336.0, 232.0, 2940.0, 692.0)
+ARENA_BOSS_BOUNDS = (2356.0, 252.0, 2920.0, 676.0)
+# The arena hugs the north edge of the world, so a camera centred on the
+# player would push the guardian's 300 px silhouette off the top of the
+# screen.  During the encounter the camera aims this many pixels north of the
+# player, keeping both fighters and the whole boss readable on screen.
+ARENA_CAMERA_LIFT = 300.0
+
+
+def _inside_arena(x: float, y: float, pad: float = 70.0) -> bool:
+    return (ARENA_X0 - pad <= x <= ARENA_X1 + pad
+            and ARENA_Y0 - pad <= y <= ARENA_Y1 + pad)
+
+
+def _outside_arena(props: list[Prop], pad: float = 70.0) -> list[Prop]:
+    return [prop for prop in props if not _inside_arena(prop.x, prop.y, pad)]
+
+
 ROADS: list[Road] = [
     Road(1600, 2400, 1600, 760, 286),          # main north-south road
     Road(0, 1300, 3200, 1300, 246),            # east-west road
@@ -210,6 +239,50 @@ CORE_PROPS: list[Prop] = [
     Prop("tree_dead_b", 960, 300),
 ]
 
+# ---------------------------------------------------------------------------
+# Ruined shrine arena — a sealed ring of broken masonry around the guardian.
+# The interior stays deliberately clear: the boss needs room, and every attack
+# telegraph must read against empty stone.
+# ---------------------------------------------------------------------------
+ARENA_PROPS: list[Prop] = [
+    # Sealed north face, with the shrine and its dead gate at the centre.
+    Prop("stone_wall", 2380, 236),
+    Prop("stone_wall", 2900, 236, True),
+    Prop("stone_pillar_tall", 2304, 250),
+    Prop("stone_pillar_tall", 2972, 250),
+    Prop("stone_gate", 2638, 250),
+    Prop("shrine", 2638, 262),
+    Prop("portal", 2638, 262),
+    # Side colonnade, deliberately broken and uneven.
+    Prop("stone_pillar_tall", 2310, 386),
+    Prop("stone_pillar_tall", 2970, 386),
+    Prop("stone_pillar", 2320, 566),
+    Prop("stone_pillar", 2960, 566),
+    Prop("stone_wall", 2308, 692, True),
+    Prop("stone_wall", 2972, 692),
+    # Broken guardians flanking the boss dais.
+    Prop("statue_great", 2440, 318),
+    Prop("statue_great", 2836, 318, True),
+    Prop("rubble_b", 2372, 470),
+    Prop("rubble_c", 2904, 470, True),
+    Prop("rubble_a", 2450, 620),
+    Prop("rubble_a", 2828, 620, True),
+    # Braziers: the only warm-ish light in an otherwise purple room.
+    Prop("lantern_tall", 2322, 314),
+    Prop("lantern_tall", 2954, 314),
+    Prop("lantern_tall", 2322, 646),
+    Prop("lantern_tall", 2954, 646),
+    # Debris and the bones of the last challengers.
+    Prop("bones", 2520, 590),
+    Prop("skull", 2560, 560, True),
+    Prop("skull_b", 2720, 588),
+    Prop("bones", 2760, 616, True),
+    # The way in is a dead gate: visual only, the player arrives by the veil.
+    Prop("stone_gate", 2638, 748),
+    Prop("stone_wall_gate", 2450, 744, True),
+    Prop("stone_wall_gate", 2826, 744),
+]
+
 
 # ---------------------------------------------------------------------------
 # Deterministic scatter — clustered so it reads as growth, not noise.
@@ -306,7 +379,12 @@ def _forest_ring() -> list[Prop]:
 
 FOREST_PROPS: list[Prop] = _forest_ring()
 
-ALL_PROPS: list[Prop] = CORE_PROPS + SCATTER_PROPS + FOREST_PROPS
+ALL_PROPS: list[Prop] = (
+    _outside_arena(CORE_PROPS)
+    + ARENA_PROPS
+    + _outside_arena(SCATTER_PROPS)
+    + _outside_arena(FOREST_PROPS)
+)
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +407,13 @@ LIGHTS: list[Light] = [
     Light(1600, 640, 300, (125, 145, 210), 0.26, 0.03, 0.0),
     Light(2530, 1740, 220, (150, 116, 214), 0.34, 0.10, 3.2),
     Light(1600, 2070, 240, (150, 116, 214), 0.32, 0.10, 5.5),
+    # Hollow Guardian arena: cold purple brazier light and a shrine bloom.
+    Light(2322, 634, 300, (150, 92, 232), 0.62, 0.22, 0.8),
+    Light(2954, 634, 300, (150, 92, 232), 0.62, 0.22, 3.1),
+    Light(2322, 314, 250, (176, 104, 250), 0.52, 0.18, 1.9),
+    Light(2954, 314, 250, (176, 104, 250), 0.52, 0.18, 4.6),
+    Light(2638, 286, 360, (196, 112, 255), 0.58, 0.26, 2.4),
+    Light(2638, 520, 420, (108, 62, 176), 0.28, 0.08, 5.7),
 ]
 
 SPAWN = (1500.0, 1080.0)
@@ -349,6 +434,12 @@ EXTRA_SOLIDS: list[tuple[float, float, float, float]] = [
     # Fence rows in the graveyard are broken into rail sections; they are
     # already handled by the prop collider, but these seal small gaps.
     (2240, 1032, 14, 16),
+    # Sealed arena shell.  Four continuous solids keep the player and the boss
+    # inside the shrine regardless of how hard a dash or knockback pushes.
+    (2300, 462, 28, 588),
+    (2976, 462, 28, 588),
+    (2638, 196, 704, 28),
+    (2638, 728, 704, 28),
 ]
 
 # Props that should never block movement.

@@ -28,6 +28,7 @@ from settings import (
 from scripts.combat_ui import CombatUI
 from scripts.pixel_font import draw_text, text_width
 from scripts.skill_hud import SkillHUD
+from scripts.ui.boss_hud import BossHUD
 
 # Public geometry (tests assert these stay compact).
 HP_X, HP_Y, HP_W, HP_H = 20, 20, 204, 13
@@ -48,6 +49,7 @@ class HUD:
         self._intro = self._make_intro()
         self.combat_ui = CombatUI()
         self.skill_hud = SkillHUD()
+        self.boss_hud = BossHUD()
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -113,6 +115,7 @@ class HUD:
     def update(self, dt: float, player) -> None:
         self.time += dt
         self.help_timer += dt
+        self.boss_hud.update(dt)
         if self.help_timer > 13.0:
             self.show_help = False
 
@@ -208,10 +211,13 @@ class HUD:
 
     # ------------------------------------------------------------------
     def draw(self, target: pygame.Surface, player, combat_manager=None,
-             camera=None, skills=None) -> None:
+             camera=None, skills=None, stage=None, boss=None) -> None:
         self._draw_vitals(target, player, skills)
         self.combat_ui.draw_combat(target, combat_manager, camera)
         self.skill_hud.draw(target, skills, player)
+        if stage is not None:
+            stage.stage_hud.draw(target, stage)
+        self.boss_hud.draw(target, boss)
 
         if self.show_help:
             target.blit(self._help, (20, SCREEN_H - 20 - HELP_H))

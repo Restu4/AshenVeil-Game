@@ -9,12 +9,18 @@ ground.  Screenshots are written to screenshots/.
 from __future__ import annotations
 
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+# Keep previews deterministic and never touch the real progression profile.
+_PREVIEW_SAVE_DIR = tempfile.mkdtemp(prefix="ashen_veil_preview_")
+os.environ.setdefault("ASHEN_VEIL_SAVE",
+                      str(Path(_PREVIEW_SAVE_DIR) / "progress.json"))
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -66,6 +72,8 @@ def main() -> None:
 
     combat_shots(game, out)
     skill_shots(game, out)
+    phase5_shots(game, out)
+    shutil.rmtree(_PREVIEW_SAVE_DIR, ignore_errors=True)
     pygame.quit()
 
 
@@ -233,6 +241,153 @@ def skill_shots(game, out: Path) -> None:
     game.draw()
     pygame.image.save(game.canvas, out / "skill_eclipse_blast.png")
     print("  skill_eclipse_blast  F ultimate detonation")
+
+
+def _advance(game, seconds: float) -> None:
+    for _ in range(max(1, int(round(seconds * 60.0)))):
+        game.update(1.0 / 60.0)
+
+
+def _snap_camera(game) -> None:
+    game.camera.snap(game.player.x + game.player.look[0],
+                     game.player.y + game.player.look[1])
+
+
+def _save(game, out: Path, name: str, note: str) -> None:
+    game.draw()
+    pygame.image.save(game.canvas, out / f"{name}.png")
+    print(f"  {name:24s} {note}")
+
+
+def _clear_stage(game) -> None:
+    game.level.stage_elapsed = 1.0
+    for enemy in list(game.combat.enemies):
+        enemy.removed = True
+        enemy.health.current = 0.0
+    game.update(1.0 / 60.0)
+
+
+def _idle_player(game, x: float, y: float, facing: str = "up") -> None:
+    player = game.player
+    player.x, player.y = x, y
+    player.facing = facing
+    player.vx = player.vy = 0.0
+    player.animator.current_name = f"idle_{facing}"
+    player.animator.current = player.animator.animations[
+        player.animator.current_name
+    ]
+    _snap_camera(game)
+
+
+def phase5_shots(game, out: Path) -> None:
+    """Title, level select, the four stages and the guardian boss HUD."""
+    from scripts.bosses.hollow_guardian import IDLE, MAX_HEALTH, WINDUP
+    from scripts.level_config import STAGE_03
+    from scripts.village_layout import ARENA_PLAYER_SPAWN
+
+    # --- Title screen ---------------------------------------------------
+    game.open_menu()
+    game.menu.time = 1.4
+    _advance(game, 0.2)
+    _save(game, out, "phase5_menu",
+          "title screen over the living village")
+
+    # --- Level select: fresh profile, the road is sealed ---------------
+    game.open_level_select("02")
+    game.level_select.time = 1.2
+    _advance(game, 0.2)
+    _save(game, out, "phase5_select_locked",
+          "Level 02 SEALED, boss and preview visible")
+
+    # --- Level select: Level 01 complete, Level 02 unlocked ------------
+    game.progression.complete_level("01")
+    game.open_level_select("02")
+    game.level_select.time = 1.2
+    _advance(game, 0.2)
+    _save(game, out, "phase5_select_unlocked",
+          "Level 01 COMPLETE, Level 02 UNLOCKED")
+
+    # --- Stage 1: abandoned village ------------------------------------
+    game.start_level("01")
+    game.hud.time = 9.0
+    game.level.banner_timer = 0.0
+    _advance(game, 0.35)
+    game.level.banner_timer = 0.0
+    _save(game, out, "phase5_stage1",
+          "STAGE 1 objective and opening trio")
+
+    # --- Stage 2: the Corrupted Warden on the west road ----------------
+    _clear_stage(game)
+    for enemy in game.combat.enemies:
+        enemy.update = lambda *args, **kwargs: None
+    _idle_player(game, 1120.0, 1120.0, "left")
+    game.level.banner_timer = 0.0
+    _advance(game, 0.3)
+    game.level.banner_timer = 0.0
+    _save(game, out, "phase5_stage2_warden",
+          "STAGE 2 elite Warden and escorts")
+
+    # --- Stage 3: the veil gate ----------------------------------------
+    _clear_stage(game)
+    _idle_player(game, STAGE_03.x + 96.0, STAGE_03.y + 34.0, "left")
+    game.level.banner_timer = 0.0
+    _advance(game, 0.3)
+    game.level.banner_timer = 0.0
+    _save(game, out, "phase5_shrine_gate",
+          "STAGE 3 pulsing veil-gate objective")
+
+    # --- Boss arena: intro, phase 1 ------------------------------------
+    _idle_player(game, STAGE_03.x, STAGE_03.y, "up")
+    game.update(1.0 / 60.0)                 # step into the gate
+    _advance(game, 1.0)                     # fade out + fade in + intro
+    game.level.banner_timer = 0.0
+    _save(game, out, "phase5_boss_intro",
+          "arena fade-in, guardian intro and boss bar")
+
+    boss = game.level.boss.boss
+    game.player.combat.invuln = 600.0
+    _idle_player(game, ARENA_PLAYER_SPAWN[0], ARENA_PLAYER_SPAWN[1], "up")
+    _advance(game, 1.6)                     # finish the intro
+    boss.state = IDLE
+    boss.attack_timer = 90.0
+    game.level.banner_timer = 0.0
+    _save(game, out, "phase5_boss_phase1",
+          "PHASE 1 AWAKENING, 1200 HP boss bar")
+
+    # --- Phase 2: corruption roar --------------------------------------
+    boss.health.current = MAX_HEALTH * 0.69
+    boss.take_damage(1.0, boss.x, boss.y, 0.0)
+    _advance(game, 0.25)
+    _save(game, out, "phase5_boss_phase2",
+          "PHASE 2 CORRUPTION banner")
+
+    # --- Phase 3: signature attack warning -----------------------------
+    _advance(game, 1.5)
+    boss.health.current = MAX_HEALTH * 0.32
+    boss.take_damage(1.0, boss.x, boss.y, 0.0)
+    _advance(game, 1.5)
+    boss.phase = 3
+    boss.state = WINDUP
+    boss.attack_kind = "signature"
+    boss.attack_time = boss._spec("signature")["windup"] * 0.55
+    boss.attack_target = (game.player.x, game.player.y)
+    boss.phase_banner = 0.0
+    _save(game, out, "phase5_boss_phase3",
+          "PHASE 3 VEIL COLLAPSE telegraph and crimson bar")
+
+    # --- Death beat, then the victory screen ---------------------------
+    boss.take_damage(99999.0, boss.x, boss.y, 0.0)
+    _advance(game, 1.0)
+    _save(game, out, "phase5_boss_death",
+          "guardian death animation, bar already gone")
+
+    _advance(game, 2.6)                     # manager -> victory state
+    _advance(game, 0.4)
+    if game.state == "VICTORY":
+        _save(game, out, "phase5_victory",
+              "victory screen with return and continue")
+    else:                                   # pragma: no cover - safety net
+        print(f"  phase5_victory skipped (state={game.state})")
 
 
 if __name__ == "__main__":

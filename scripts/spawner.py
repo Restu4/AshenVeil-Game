@@ -52,9 +52,12 @@ class Spawner:
         self._next_id = 1
         self.spawn_log: list[tuple[str, float, float]] = []
         self.rejected_points = 0
+        # Level/stage scripting can freeze reinforcements without clearing the
+        # finite-spawn bookkeeping (arena fights, elite duels, shrine scenes).
+        self.enabled = True
 
     # ------------------------------------------------------------------
-    def reset(self) -> None:
+    def reset(self, spawn_group: bool = True) -> None:
         self.combat.enemies.clear()
         self.total_spawned = 0
         self.timer = ENEMY_SPAWN_INTERVAL
@@ -62,11 +65,15 @@ class Spawner:
         self._next_id = 1
         self.spawn_log.clear()
         self.rejected_points = 0
-        for key in ENEMY_START_GROUP:
-            self.spawn(key, initial=True)
+        self.enabled = True
+        if spawn_group:
+            for key in ENEMY_START_GROUP:
+                self.spawn(key, initial=True)
 
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
+        if not self.enabled:
+            return
         if dt <= 0.0:
             return
         if self.total_spawned >= ENEMY_SPAWN_TOTAL_CAP:
@@ -104,6 +111,41 @@ class Spawner:
         self.total_spawned += 1
         self.spawn_log.append((key, x, y))
         return enemy
+
+    # ------------------------------------------------------------------
+    def spawn_at(self, key: str, x: float, y: float,
+                 facing: str = "down", archetype=None) -> Enemy | None:
+        """Place a scripted enemy near (x, y), nudging to a valid spot.
+
+        Used by the level script for the Corrupted Warden and its escort.  It
+        never places a body inside a wall: if the requested point is blocked it
+        searches a ring of nearby points before giving up.
+        """
+        arch = archetype or get_archetype(key)
+        spot = self._nearest_free(x, y, arch)
+        if spot is None:
+            return None
+        px, py = spot
+        enemy = Enemy(self.assets, self._next_id, arch, px, py, facing)
+        self._next_id += 1
+        enemy.attack_cooldown = ENEMY_SPAWN_COOLDOWN + 0.25
+        self.combat.enemies.append(enemy)
+        self.total_spawned += 1
+        self.spawn_log.append((arch.key, px, py))
+        return enemy
+
+    def _nearest_free(self, x: float, y: float, archetype):
+        offsets = [(0, 0)]
+        for radius in (34, 68, 104, 146, 190):
+            for i in range(12):
+                angle = i * math.tau / 12
+                offsets.append((math.cos(angle) * radius,
+                                math.sin(angle) * radius))
+        for ox, oy in offsets:
+            px, py = x + ox, y + oy
+            if self._position_valid(px, py, archetype):
+                return px, py
+        return None
 
     # ------------------------------------------------------------------
     def _choose_position(self, archetype, min_player_distance: float):

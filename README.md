@@ -1,13 +1,21 @@
 # ASHEN VEIL — Ashen Village
 
-A first-playable, top-down dark fantasy **hack & slash** village built with
+A first-playable, top-down dark fantasy **hack & slash** built with
 **Python + Pygame-CE**, packaged for the browser with **Pygbag**. This slice is
 about atmosphere, exploration and fast multi-enemy swordplay: Fallen Knights,
 Void Stalkers and Ashen Cultists roam the dying village while the player chains
 a five-hit combo, dodge-rolls through swings and dash-attacks across the plaza.
 On top of the swordplay sits **VOID ESSENCE**, a dark-magic system with a
-regenerating energy pool and four skills. There is no quest, inventory or boss
-system yet.
+regenerating energy pool and four skills.
+
+**Phase 5** completes the first level. A title screen and atmospheric level
+select lead into **Level 01 · ASHEN VILLAGE**, a four-stage descent from the
+abandoned village, along the corrupted western path and through the forgotten
+shrine, into a sealed arena where **THE HOLLOW GUARDIAN** waits. Beating the
+guardian opens a victory screen and unlocks Level 02 in a small JSON profile.
+Levels 02–04 are fully authored selection entries with previews, lore and lock
+states, but their maps are deliberately not forged yet. There is still no
+inventory or quest system.
 
 The playable character uses the original ASHEN VEIL spritesheet (hooded figure,
 black face, single white eye, large back sword, cape and sandals). The village
@@ -16,6 +24,43 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
 
 ## Features
 
+- **Title screen and level select** — a dark-fantasy title over the living
+  village, then four large atmospheric cards with baked preview dioramas, level
+  number and name, description, boss lore, completion/lock status and a single
+  Play action. Keyboard, number keys and mouse all work; locked cards can be
+  inspected but never entered. Levels 02–04 advertise **MAP NOT YET FORGED**.
+- **Four-stage Level 01** — the stage script drives the run without taking over
+  combat:
+  1. **ABANDONED VILLAGE** — cut down the opening trio.
+  2. **CORRUPTED PATH** — break the 320 HP **Corrupted Warden** and its two
+     escorts on the western road.
+  3. **FORGOTTEN SHRINE** — walk into the pulsing veil gate; a short fade
+     carries the player into the sealed arena.
+  4. **BOSS ARENA** — defeat **THE HOLLOW GUARDIAN**. No retreat.
+- **THE HOLLOW GUARDIAN** — a 1200 HP three-phase boss with purple chest
+  cracks, a crimson core, an oversized greatsword and a 314×314 px silhouette
+  (over three times a knight's frame). Every attack has a named wind-up,
+  growing floor telegraph and committed recovery: **SWEEP**, **GROUND SLAM**,
+  **TWIN SWEEP**, **VOID WAVE**, **VEIL MARK** and the **VEIL COLLAPSE**
+  signature. See [The Hollow Guardian](#the-hollow-guardian).
+- **Boss and stage HUDs** — a 620×64 top-centre guardian bar with the name
+  above, phase readout, three phase diamonds, 70 %/35 % threshold notches and
+  a crimson danger band; it exists only during the encounter and disappears the
+  instant the guardian dies. A compact 300×42 stage panel sits under the
+  vitality bars with stage number, objective, remaining foes / gate distance,
+  four pips and a short stage banner.
+- **Persistent progression** — completion, boss kill and stages cleared are
+  written to `save/progress.json` (and mirrored to browser `localStorage`). A
+  completed Level 01 permanently unlocks Level 02 in the select screen; player
+  level is preserved independently across runs. Missing, truncated or
+  wrong-shaped saves fall back to a clean profile without crashing.
+- **Victory flow** — the guardian's death animation plays, every attack and
+  hazard stops, and after a short beat the victory screen offers **CONTINUE**
+  (preselects the newly unlocked Level 02) and **RETURN TO LEVEL SELECT**
+  (preselects the completed Level 01). Nothing teleports automatically.
+- **Arena framing** — the shrine sits against the world's north edge, so the
+  camera lifts 300 px while the guardian is active; the whole boss clears the
+  HUD instead of being clipped off-screen.
 - **Explorable Ashen Village** — 3200×2400 hand-authored world with a cobbled
   plaza, well, timber houses, a church, a ruined stone gate, a graveyard, a
   purple tower and portal, ruined arches, fences, carts, barrels, crates, dead
@@ -94,15 +139,21 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
   below (`20,44` · 172×9 px), a 120×3 dash gauge at `20,57`, four 42 px skill
   icons in a 186 px bottom-right strip (`1074,658`), a small 120×52 combo
   readout at `1140,16`, a 300×46 engaged-target plate top-centre, floating
-  48×4 enemy bars and a 438×32 control hint. Cached surfaces only; the fixed
-  1280×720 canvas is nearest-neighbour letterboxed on resize. A “YOU DIED”
-  veil still offers restart.
+  48×4 enemy bars and a 438×32 control hint. Level 01 adds a 300×42 stage
+  objective panel at `20,66` and the 620×64 guardian bar at `330,8`; the
+  generic engaged plate is suppressed for the boss so the two never stack.
+  Cached surfaces only; the fixed 1280×720 canvas is nearest-neighbour
+  letterboxed on resize. A “YOU DIED” veil still offers restart.
 - **Browser build** via Pygbag with an async-compatible game loop.
 
 ## Controls
 
 | Input | Action |
 | --- | --- |
+| `↑` / `↓` or `W` / `S`, mouse | Move the title-menu highlight |
+| `Enter` / `Space` / click | Confirm a menu item, start a level, or choose a victory action |
+| `←` / `→` or `A` / `D` / `1`–`4` | Choose a level card |
+| `Esc` | Back from level select, return from victory, or quit (desktop) |
 | `WASD` / arrow keys | Move (8 directions) |
 | `Left mouse button` | Attack — press again during a swing to chain the five-hit combo |
 | `Right mouse button` / `C` | Dash attack (forward burst + wide strike) |
@@ -116,7 +167,6 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
 | `H` | Toggle control hints |
 | `F1` / `F3` | Toggle debug overlay |
 | `F11` | Toggle fullscreen (desktop) |
-| `Esc` | Quit (desktop) |
 
 The help bar hides itself after a short while; press `H` to bring it back. The
 browser builds capture the mouse on the canvas, so click once to focus before
@@ -127,6 +177,13 @@ one keypress casts at most one ability. The dash key is configurable via
 `DASH_KEY_NAME` in `scripts/combat_config.py`; skill keys, costs and cooldowns
 live in `scripts/skill_config.py`; enemy stats, spawn caps and projectile
 tuning live in `scripts/enemy_config.py`.
+
+On the title screen `BEGIN DESCENT` starts Level 01 and `LEVEL SELECT` opens
+the four cards. Level select responds to arrows, `1`–`4`, mouse hover/click and
+`Enter`; a sealed card explains what to clear. At the victory screen use
+left/right (or Tab) to switch between `CONTINUE` and `RETURN TO LEVEL SELECT`
+and `Enter` to confirm. Restarting after death always returns to Level 01
+stage 1 at the village spawn; progression is never erased.
 
 ## Combat tuning
 
@@ -203,6 +260,118 @@ All values live in `scripts/skill_config.py`.
 - Presentation limits live at the bottom of the config: 240 skill particles,
   10 rings, 24 afterimages and 4 travelling waves.
 
+## Level 01 and progression
+
+| Stage | Objective | Flow |
+| --- | --- | --- |
+| 1 ABANDONED VILLAGE | CUT DOWN THE RISEN DEAD | the authored opening trio (knight, stalker, cultist) |
+| 2 CORRUPTED PATH | BREAK THE CORRUPTED WARDEN | 320 HP elite + one stalker and one cultist escort on the west road |
+| 3 FORGOTTEN SHRINE | STEP INTO THE VEIL GATE | walk into the pulsing 54 px gate marker |
+| 4 BOSS ARENA | DEFEAT THE HOLLOW GUARDIAN | a 0.42 s veil fade into the sealed shrine; no retreat |
+
+- The stage script disables the endless reinforcement trickle, so every stage
+  group is authored and finite. Clearing a group records the stage, shows a
+  stage banner and spawns the next group; stage 3 waits for the gate; stage 4
+  starts the boss encounter.
+- The Corrupted Warden is an elite variant of the Fallen Knight (same AI and
+  art, 320 HP / 22 damage / 116 px/s), not a fourth archetype.
+- Stage 1→2 and 2→3 transitions preserve the same player, skills and effects;
+  only the enemy group changes. Entering the gate is the only way into the
+  arena.
+- The arena floor is a runtime-baked ruined-shrine overlay (cold flagstones,
+  purple seal, blood) laid over the world's north-east corner. Village props
+  inside the rectangle are filtered out and replaced with the authored shrine
+  set; four continuous collision solids seal the shell. Player and boss are
+  also clamped to their own arena bounds so knockback and dashes cannot escape.
+- Levels are a strict chain: Level 01 is always open, completing it unlocks
+  Level 02, and so on. Levels 02–04 have no maps yet; the select screen shows
+  their preview, boss lore, **SEALED**/**UNLOCKED** status and **MAP NOT YET
+  FORGED** instead of starting an unfinished level.
+- A completed level can be replayed from the select screen. Replaying starts at
+  stage 1 with the opening trio and never clears the saved completion.
+
+### Save location and shape
+
+- Desktop: `save/progress.json` next to the game. Override the path with the
+  `ASHEN_VEIL_SAVE` environment variable (used by the test suite and preview
+  tools so they never touch a real profile).
+- Browser: the same JSON is also written to `window.localStorage` under
+  `ashen_veil_progress`, so a refresh keeps the unlock even if the virtual
+  filesystem resets.
+- The profile is intentionally tiny and versioned:
+
+```json
+{
+  "version": 1,
+  "levels": {
+    "01": {"completed": true, "boss_defeated": true, "stages_cleared": 4}
+  },
+  "player": {"level": 7}
+}
+```
+
+- Loading canonicalises every field: a missing file, empty file, truncated
+  JSON, wrong root type, junk level entry, negative stage count or out-of-range
+  player level all fall back to safe values. Writes are atomic (temporary file
+  then replace) and return a boolean; the victory screen reports a failed save
+  instead of pretending it succeeded.
+
+## The Hollow Guardian
+
+The guardian duck-types the enemy contract (`take_damage`, `health`, `alive`,
+`removed`, `draw`, `update`) and is appended to the normal combat list, so
+`CombatManager` remains the single damage authority. Its art is procedural,
+cached per `(action, frame, facing)` and drawn at 2.8× from a 112 px source
+frame, giving a 314×314 px silhouette with a 269 px foot line.
+
+| Stat | Value |
+| --- | --- |
+| Health | 1200 |
+| Body half extents | 34 × 22 px (regular knight 13 × 9) |
+| Speed | 62 / 78 / 92 px/s by phase (regular knight 96, always slower) |
+| Melee reach | 178 px base, ×1.06 / ×1.12 in phases 2 / 3 |
+| Arena bounds | `2356,252 – 2920,676`; player `2336,232 – 2940,692` |
+| Phase thresholds | 70 % and 35 % of maximum health |
+
+| Phase | Name | Behaviour |
+| --- | --- | --- |
+| 1 | AWAKENING | slow pursuit; only SWEEP and GROUND SLAM; long recovery pauses |
+| 2 | CORRUPTION | faster pursuit; adds TWIN SWEEP, VOID WAVE and VEIL MARK; 0.90× wind-ups, 0.86× recovery |
+| 3 | LAST RESOLVE | most aggressive; 0.78× wind-ups, 0.70× recovery, +30 % damage, +12 % reach; VEIL COLLAPSE whenever its 10 s timer is ready |
+
+| Attack | Warning | Base wind-up | Active | Recovery | Base damage | Shape |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| SWEEP | SWEEP | 0.86 s | 0.16 s | 0.66 s | 20 | 178 px, 112° sector |
+| GROUND SLAM | GROUND SLAM | 1.06 s | 0.20 s | 0.90 s | 26 | 186 px radius + shock ring |
+| TWIN SWEEP | TWIN SWEEP | 0.62 s | 0.15 s | 0.58 s | 17 | two 186 px, 132° sweeps, re-aimed between links |
+| VOID WAVE | VOID WAVE | 0.96 s | 0.26 s | 0.82 s | 16 | 330 px expanding ring |
+| VEIL MARK | VEIL MARK | 1.16 s | 0.20 s | 0.84 s | 21 | 122 px ground blast at the locked mark |
+| VEIL COLLAPSE | VEIL COLLAPSE | 1.78 s | 0.30 s | 1.05 s | 34 | 168 px signature blast, heavy shake, nova |
+
+Every attack is a committed `WINDUP → ACTIVE → RECOVERY` sequence. The wind-up
+paints a growing floor telegraph (sector, disc or ring) and names the attack
+above the guardian; the attack only resolves once, at the end of the wind-up.
+Fairness rules:
+
+- All damage goes through `player.take_damage`, so dodge/dash i-frames and the
+  death state remain authoritative for both direct hits and ground hazards.
+- Melee, slams and hazards check `collision.segment_blocked` before applying
+  damage, so nothing reaches through the sealed shrine walls.
+- VEIL MARK and VEIL COLLAPSE lock their target at cast time; the warning circle
+  never silently follows the player.
+- The guardian is clamped to its arena bounds while chasing; attacks cannot
+  leave the arena.
+- The phase change is a 1.15 s roar with a banner (`PHASE 2 · CORRUPTION`), so
+  the escalation is readable instead of a surprise.
+- Death clears every pending hazard and swipe, stops the attack state machine
+  and removes the corpse after its animation.
+
+Victory is a short beat rather than an instant cut: the corpse plays its death
+animation for 2.9 s, attacks stay stopped, then the victory screen opens. It
+marks Level 01 complete, records the boss kill and all four stages, writes the
+profile and unlocks Level 02. The player is never teleported; both buttons lead
+back to the level select (Continue focuses Level 02, Return focuses Level 01).
+
 ## Requirements
 
 - Python 3.12 or 3.13 recommended (Pygame-CE and Pygbag are pinned).
@@ -256,6 +425,7 @@ python -m pygbag --archive --title "ASHEN VEIL" .
 - `tools/` (offline asset baking and previews)
 - `screenshots/` (preview captures)
 - `assets/environment/` (source atlas; runtime uses `assets/sliced/`)
+- `save/` (a developer's local progression profile is never shipped)
 - `README.md` and `requirements-dev.txt`
 
 The original source art stays in the repository for provenance, but the web
@@ -271,6 +441,7 @@ settings.py                 Resolution, world size, speeds, palette
 pygbag.ini                  Browser build exclusions
 requirements.txt            Runtime dependencies
 requirements-dev.txt        Optional asset-tool dependencies
+save/progress.json          Desktop progression profile (created on first victory)
 
 assets/
   characters/               Original player sheet + frame metadata
@@ -304,21 +475,39 @@ scripts/
   combat_ui.py              Combo counter, crit flash, enemy bars and the death veil
   collision.py              Prop footprints, spatial hash, sliding movement
   camera.py                 Smooth clamped camera and world→screen conversion
-  village_layout.py         Canonical roads, patches, props, lights, spawn
-  world.py                  Prop instances, culling, Y-sorting, ground blit
+  village_layout.py         Canonical roads, patches, props, lights, spawn, arena
+  world.py                  Prop instances, culling, Y-sorting, ground blit, arena floor
   atmosphere.py             Night overlay, glows, fog, ash, motes, dust, vignette
-  hud.py                    Compact HP/Void/dash bars, help and intro
+  hud.py                    Compact HP/Void/dash bars, help, intro and stage/boss HUD
   pixel_font.py             5×7 bitmap font and text renderer
+  save_manager.py           Atomic versioned JSON profile + browser localStorage mirror
+  level_config.py           Four level entries, boss lore and the four Level 01 stages
+  progression_manager.py    Unlock chain, completion flags and stage records
+  level_manager.py          Stage flow, Warden spawns, veil gate and arena hand-off
+  boss_manager.py           Encounter lifecycle, arena clamps and the victory beat
+  arena_art.py              Baked ruined-shrine floor overlay for the arena
+  bosses/
+    hollow_guardian.py      1200 HP three-phase boss AI, telegraphs and hazards
+    guardian_art.py         Procedural cached 314 px guardian art and animator
+  ui/
+    main_menu.py            Title screen with Begin / Level Select / Quit
+    level_select.py         Four atmospheric level cards, lock states and Play
+    preview_art.py          Baked village/forest/dungeon/castle dioramas
+    boss_hud.py             620×64 guardian bar, phase pips and phase banner
+    stage_hud.py            Compact stage/objective panel, pips and stage banner
+    victory_screen.py       Victory overlay with Continue and Return buttons
+    ui_common.py            Shared panels, buttons, chips and text wrapping
 
 tools/                      Development only (not shipped to the web build)
   slice_assets.py           Re-cuts the source atlas into assets/sliced/
   bake_ground.py            Rebakes assets/generated/ground.png
-  preview.py                Headless landmark + combat + skill screenshots
+  preview.py                Headless landmark, combat, skill and Phase 5 screenshots
   bench.py                  Headless draw benchmark (exploration/combat/skills)
-  test_combat.py            Headless functional checks (211 assertions)
+  test_combat.py            Headless Phase 1–4 baseline (211 assertions)
+  test_phase5.py            Headless Phase 5 acceptance suite (252 assertions)
   generate_fallen_knight.py Regenerates the Fallen Knight sheet
 
-screenshots/                Landmark preview renders from tools/preview.py
+screenshots/                Landmark, combat, skill and phase5_* preview renders
 ```
 
 ## Rebuilding art (optional)
@@ -361,19 +550,60 @@ roads, plaza and static light pools stay aligned with props and collision.
 - Skill visuals reuse one cached full-screen dark surface, cached dot sprites
   and plain capped lists; the wave and Eclipse sigil are cheap arc/circle
   draws rather than new per-frame surfaces.
-- `tools/bench.py` on the development machine reports roughly 6–8 ms for a full
-  1280×720 draw: exploration ≈ 6.2 ms, three-archetype combat ≈ 7.7 ms and a
-  frame with all four skills firing ≈ 7.2 ms (world ≈ 1.8–2.1 ms, atmosphere
-  ≈ 2.6–2.8 ms, skill effects ≈ 0.3 ms, combat effects ≈ 0.3–0.8 ms, HUD
-  ≈ 1.2–1.6 ms) with the dummy video driver. Browser timing will differ.
+- The arena floor is baked once into a single surface and blitted only while
+  the arena is on screen. Guardian frames are cached per action/frame/facing,
+  so the boss costs one scaled blit plus a handful of cached telegraphs.
+- `tools/bench.py` on the development machine reports roughly 5.7–6.5 ms mean
+  for a full 1280×720 draw (p95 8.7–12.3 ms): exploration ≈ 5.7 ms,
+  three-archetype combat ≈ 6.5 ms and a frame with all four skills firing
+  ≈ 5.7 ms (world ≈ 1.5–1.8 ms, atmosphere ≈ 2.1–2.5 ms, skill effects
+  ≈ 0.0–0.2 ms, combat effects ≈ 0.0–0.5 ms, HUD ≈ 1.2–1.3 ms) with the dummy
+  video driver. Browser timing will differ.
 - Enemy frames are shared caches: the knight spritesheet is loaded once and the
   stalker/cultist procedural surfaces are generated once per animation frame,
   then reused by every instance.
 
-## Phase 4 verification
+## Verification
+
+### Phase 5 acceptance suite
+
+`python tools/test_phase5.py` runs **252** headless assertions in nine sections:
+
+1. **Save manager** — missing/empty/truncated/wrong-shaped profiles fall back
+   safely, canonicalisation clamps junk, roundtrip preserves completion, atomic
+   writes leave no `.tmp`, and `ASHEN_VEIL_SAVE` redirects the profile.
+2. **Level configuration** — exactly four ordered entries, only Level 01
+   playable, four named Level 01 stages with objectives, distinct previews and
+   accents, and a terminating unlock chain.
+3. **Progression** — Level 01 open, Level 02 locked, stage records never
+   regress, completion unlocks exactly the next entry, reload persistence,
+   reset, player-level preservation and corrupt-profile safety.
+4. **Level 01 flow** — opening trio, reinforcements disabled, trio → Warden and
+   two escorts → veil gate → fade → arena, Warden stats and position, four-wall
+   seal, filtered arena props, arena floor, player clamp and camera framing.
+5. **Hollow Guardian** — 1200 HP, scale, slower speeds, phase thresholds and
+   names, attack pools, warning labels, telegraph pixels, shorter later-phase
+   recovery, fair reach/arc/behind checks, i-frame immunity, no damage through
+   the wall, locked area marks, boss clamp, and guaranteed death cleanup.
+6. **HUD** — 620×64 boss bar centred at `330,8` below the play field, no overlap
+   with the stage panel, bar appears during the fight and vanishes on defeat or
+   empty health, stage panel geometry and renderable text.
+7. **Victory** — death animation beat, all attacks stopped, Level 01 complete,
+   boss recorded, Level 02 unlocked but still not playable, save written,
+   no auto-teleport/auto-continue, Continue and Return both land on the correct
+   select card, replay preserves completion, restart resets to stage 1.
+8. **UI screens** — menu items/navigation, all four select cards fit and render
+   full art without overlap, locked Play explains the seal, four distinct
+   cached dioramas, victory panel and button switching, and letterboxed mouse
+   mapping.
+9. **Integration hygiene** — every Phase 5 string uses glyphs the bitmap font
+   owns, every new module ships, the Pygbag async loop and four-screen routing
+   remain intact, and no random spawn point sits inside the arena.
+
+### Phase 4 baseline
 
 `python tools/test_combat.py` runs **211** headless assertions. Its twelve
-numbered sections map directly to the acceptance areas:
+numbered sections map directly to the Phase 1–4 acceptance areas:
 
 1. **Movement, run, collision and camera** — walking, unrestricted running,
    the IDLE/WALK/RUN surface, house blocking and camera clamping.
@@ -413,24 +643,32 @@ numbered sections map directly to the acceptance areas:
     only their own ability.
 12. **Pygbag** — async entry point, per-frame `await asyncio.sleep(0)`,
     emscripten detection, desktop `asyncio.run`, `pygbag.ini`, the built
-    `index.html`, and an archive containing `main.py` and
-    `scripts/projectile.py` with `tools/` excluded.
+    `index.html`, and an archive containing `main.py`, `scripts/projectile.py`
+    and the Phase 5 save/level/boss/UI modules, with `tools/` and `save/`
+    excluded.
 
 Also verified:
 
-- Landmark, combat and skill views render and are saved in `screenshots/`
-  (`combat_impact.png`, `combat_finisher.png`, `combat_dash.png`,
-  `combat_kill.png`, `combat_death.png`, `skill_void_burst.png`,
-  `skill_shadow_step.png`, `skill_void_slash.png`,
-  `skill_eclipse_windup.png`, `skill_eclipse_blast.png`).
+- Landmark, combat, skill and Phase 5 views render and are saved in
+  `screenshots/` (`combat_impact.png`, `combat_finisher.png`,
+  `combat_dash.png`, `combat_kill.png`, `combat_death.png`,
+  `skill_void_burst.png`, `skill_shadow_step.png`, `skill_void_slash.png`,
+  `skill_eclipse_windup.png`, `skill_eclipse_blast.png`, plus
+  `phase5_menu.png`, `phase5_select_locked.png`,
+  `phase5_select_unlocked.png`, `phase5_stage1.png`,
+  `phase5_stage2_warden.png`, `phase5_shrine_gate.png`,
+  `phase5_boss_intro.png`, `phase5_boss_phase1.png`,
+  `phase5_boss_phase2.png`, `phase5_boss_phase3.png`,
+  `phase5_boss_death.png` and `phase5_victory.png`).
 - `python tools/bench.py` completes all three scenarios and reports the
   draw-phase timings above; the skill and combat effect lists stay within
   their caps.
 - `python -m compileall -q scripts main.py settings.py tools` completes without
   errors.
-- `python -m pygbag --build --title "ASHEN VEIL" .` produces a browser build in
-  `build/web/`; serving that directory returns `index.html`, `game.tar.gz` and
-  `game.apk` with HTTP 200 (archive ≈ 7.7 MB).
+- `python -m pygbag --build --title "ASHEN VEIL" .` produces a 147-file browser
+  build in `build/web/` without `tools/`, `screenshots/`, the source atlas or
+  any local save profile; serving that directory returns `index.html`,
+  `game.tar.gz` and `game.apk` with HTTP 200 (archive ≈ 7.8 MB).
 - A live interactive browser session (real input, audio, canvas display) still
   needs a manual check in your own browser; this environment cannot verify
   actual in-browser behaviour. The async loop, event handlers and rendering
@@ -451,22 +689,42 @@ Also verified:
   have one art set per archetype rather than per-direction attack variants.
 - No new frames were invented for the player. The knight sheet is generated
   from code in `tools/generate_fallen_knight.py`, not reused player art.
+- **THE HOLLOW GUARDIAN has no source sheet.** All twelve actions (`idle`,
+  `walk`, `windup`, `sweep`, `slam`, `combo`, `wave`, `charge`, `hurt`,
+  `death`, `roar`, `victory`) are drawn procedurally into 112 px frames in
+  `scripts/bosses/guardian_art.py`, cached per action/frame/facing and scaled
+  2.8× at draw time. Facing mirrors the silhouette rather than redrawing every
+  angle, and there are no distinct per-direction attack frames.
+- The ruined-shrine arena floor is a procedural overlay (`scripts/arena_art.py`)
+  baked once at load; the surrounding village still uses the existing baked
+  ground texture. No new atlas art was added for the boss or arena.
+- Levels 02–04 have atmospheric preview dioramas baked by
+  `scripts/ui/preview_art.py`; they are selection art, not playable maps.
 - The project currently has **no audio system or sound assets**. Enemy attacks,
-  projectiles and the Void skills therefore have distinct visuals, timings,
-  camera shake and hit stop, but no sound effects were added; adding audio
-  would require a new mixer module and assets, which is outside this phase.
+  bolts, the guardian's slams and ground blasts, and the Void skills therefore
+  have distinct visuals, timings, camera shake and hit stop, but no sound
+  effects were added; adding audio would require a new mixer module and assets,
+  which is outside this phase.
 
 ## Remaining issues
 
 - In-browser behaviour (real input focus, audio, actual frame pacing) still
   needs a manual session in a real browser; the headless suite cannot prove it.
+  The Phase 5 screens are rendered in `screenshots/` and can be reviewed, but
+  boss feel and difficulty still want a human playthrough.
 - The cultist's bolt is a simple circle with a glow, not a fully animated
   sprite, and all three archetypes share the same eight-direction facing model.
 - Enemy art is intentionally limited to one procedural set per new archetype;
-  there are no per-direction attack frames for the stalker or cultist.
+  there are no per-direction attack frames for the stalker or cultist. The
+  guardian mirrors one silhouette instead of having per-direction boss art.
 - Spawn points are hand-authored (14 validated locations); a runtime navigation
   mesh or dynamic spawn placement is out of scope for this phase.
-- There is still no inventory, quest, new map or boss encounter, by design.
+- Levels 02–04 are deliberately selection entries only: their names, previews,
+  lore, bosses and lock states exist, but no maps or encounters are generated.
+- There is still no inventory, quest system or additional boss encounter.
+- Browser saves are best-effort: the JSON file may live in an in-memory
+  filesystem, so `localStorage` is the durable mirror. A browser with storage
+  disabled can still play but will not remember unlocks after a refresh.
 
 ## Credits
 

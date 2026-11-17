@@ -4,8 +4,15 @@ from __future__ import annotations
 import pygame
 
 from settings import WORLD_H, WORLD_W
+from scripts.arena_art import build_arena_floor
 from scripts.collision import CollisionWorld
-from scripts.village_layout import ALL_PROPS, LIGHTS, SPAWN, Light
+from scripts.village_layout import (
+    ALL_PROPS,
+    ARENA_RECT,
+    LIGHTS,
+    SPAWN,
+    Light,
+)
 
 
 class PropInstance:
@@ -64,6 +71,11 @@ class World:
         self.collision = CollisionWorld(ALL_PROPS, assets.dims)
         self.spawn = SPAWN
 
+        x0, y0, x1, y1 = ARENA_RECT
+        self.arena_rect = pygame.Rect(x0, y0, x1 - x0, y1 - y0)
+        self.arena_floor = build_arena_floor(self.arena_rect.w,
+                                             self.arena_rect.h)
+
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
         pass
@@ -80,6 +92,11 @@ class World:
         if sw > 0 and sh > 0:
             target.blit(self.ground, (sx - ox, sy - oy),
                         area=pygame.Rect(sx, sy, sw, sh))
+
+        # The shrine floor replaces the village ground inside the arena only.
+        if view.colliderect(self.arena_rect):
+            target.blit(self.arena_floor,
+                        (self.arena_rect.x - ox, self.arena_rect.y - oy))
 
         # Cull by each sprite's true bounding box, then sort by ground contact.
         visible: list[tuple[float, PropInstance]] = []

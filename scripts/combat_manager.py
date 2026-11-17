@@ -67,9 +67,9 @@ class CombatManager:
         self.restart()
 
     # ------------------------------------------------------------------
-    def restart(self) -> None:
+    def restart(self, spawn: bool = True) -> None:
         self.projectiles.clear()
-        self.spawner.reset()
+        self.spawner.reset(spawn)
         self.engaged = None
         self.engaged_timer = 0.0
         self.hit_stop = 0.0
