@@ -49,6 +49,7 @@ class Effects:
         self._vignette = self._build_hurt_vignette()
 
         self.slashes: list[dict] = []
+        self.swipes: list[dict] = []
         self.particles: list[dict] = []
         self.numbers: list[dict] = []
         self.novas: list[dict] = []
@@ -96,6 +97,56 @@ class Effects:
                 "size": self.rng.choice((2, 2, 3, 4) if (heavy or crit)
                                        else (1, 2, 2, 3)),
                 "color": self.rng.choice(colors),
+            })
+        self.particles = self.particles[-200:]
+
+    def spawn_enemy_swipe(self, x: float, y: float, facing: str,
+                          color=(204, 94, 98), hit: bool = False) -> None:
+        """Short, low-cost arc telling the player an enemy just struck."""
+        self.swipes.append({
+            "x": x,
+            "y": y,
+            "facing": facing,
+            "color": color,
+            "hit": hit,
+            "age": 0.0,
+            "duration": 0.20,
+        })
+        self.swipes = self.swipes[-10:]
+        if hit:
+            for _ in range(5):
+                angle = self.rng.uniform(-math.pi, math.pi)
+                speed = self.rng.uniform(25, 80)
+                self.particles.append({
+                    "x": x + self.rng.uniform(-4, 4),
+                    "y": y - self.rng.uniform(14, 26),
+                    "vx": math.cos(angle) * speed,
+                    "vy": math.sin(angle) * speed * 0.6 - 14,
+                    "gravity": 180.0,
+                    "life": self.rng.uniform(0.14, 0.28),
+                    "max": 0.28,
+                    "size": self.rng.choice((1, 2, 2)),
+                    "color": color,
+                })
+            self.particles = self.particles[-200:]
+
+    def spawn_projectile_impact(self, x: float, y: float,
+                                color=(198, 126, 255)) -> None:
+        """Small purple pop when a bolt hits a wall or the player."""
+        for _ in range(10):
+            angle = self.rng.uniform(-math.pi, math.pi)
+            speed = self.rng.uniform(35, 120)
+            self.particles.append({
+                "x": x + self.rng.uniform(-3, 3),
+                "y": y + self.rng.uniform(-3, 3),
+                "vx": math.cos(angle) * speed,
+                "vy": math.sin(angle) * speed * 0.8 - 16,
+                "gravity": 170.0,
+                "life": self.rng.uniform(0.16, 0.34),
+                "max": 0.34,
+                "size": self.rng.choice((1, 2, 2, 3)),
+                "color": self.rng.choice((color, (232, 206, 255),
+                                          (120, 70, 168))),
             })
         self.particles = self.particles[-200:]
 
@@ -158,6 +209,10 @@ class Effects:
             slash["age"] += dt
         self.slashes = [s for s in self.slashes if s["age"] < s["duration"]]
 
+        for swipe in self.swipes:
+            swipe["age"] += dt
+        self.swipes = [s for s in self.swipes if s["age"] < s["duration"]]
+
         for particle in self.particles:
             particle["x"] += particle["vx"] * dt
             particle["y"] += particle["vy"] * dt
@@ -190,6 +245,27 @@ class Effects:
             surface.set_alpha(alpha)
             sx, sy = camera.to_screen(slash["x"], slash["y"] - 16)
             target.blit(surface, (sx - SLASH_SIZE // 2, sy - SLASH_SIZE // 2))
+
+        for swipe in self.swipes:
+            t = swipe["age"] / swipe["duration"]
+            alpha = max(0.0, 1.0 - t)
+            if swipe["facing"] == "left":
+                base = 180.0
+            elif swipe["facing"] == "up":
+                base = 270.0
+            elif swipe["facing"] == "down":
+                base = 90.0
+            else:
+                base = 0.0
+            sx, sy = camera.to_screen(swipe["x"], swipe["y"] - 18)
+            color = tuple(int(c * (0.55 + 0.45 * alpha)) for c in swipe["color"])
+            radius = 22 + int(8 * (1.0 - alpha))
+            for offset in (-26, -8, 10, 28):
+                angle = math.radians(base + offset)
+                length = radius + (4 if offset in (-8, 10) else 0)
+                x2 = int(sx + math.cos(angle) * length)
+                y2 = int(sy + math.sin(angle) * length * 0.72)
+                pygame.draw.line(target, color, (sx, sy), (x2, y2), 2)
 
         for nova in self.novas:
             t = min(1.0, nova["age"] / nova["duration"])
@@ -239,6 +315,7 @@ class Effects:
 
     def clear(self) -> None:
         self.slashes.clear()
+        self.swipes.clear()
         self.particles.clear()
         self.numbers.clear()
         self.novas.clear()
@@ -339,7 +416,8 @@ class Effects:
         return dot
 
     def _number_surface(self, text: str, heavy: bool, crit: bool) -> pygame.Surface:
-        scale = 3 if crit else (2 if heavy else 1)
+        # Readable at a glance: light hits are 2x the pixel font, heavy/crit 3x.
+        scale = 3 if (crit or heavy) else 2
         key = (text, scale, 1 if crit else 0)
         surface = self._number_cache.get(key)
         if surface is not None:

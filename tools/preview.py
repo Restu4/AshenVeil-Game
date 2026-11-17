@@ -70,15 +70,17 @@ def main() -> None:
 
 
 def _place_duel(game) -> None:
-    """Put the player and one knight face to face on open plaza ground."""
+    """Put the player and one fallen knight face to face on open plaza ground."""
     game.restart()
     game.hud.time = 9.0
     player = game.player
     player.x, player.y = 1660.0, 1210.0
     player.facing = "right"
     player.vx = player.vy = 0.0
-    knight = game.combat.enemies[0]
-    for index, other in enumerate(game.combat.enemies[1:], start=1):
+    knight = next(e for e in game.combat.enemies if e.key == "fallen_knight")
+    for index, other in enumerate(game.combat.enemies, start=1):
+        if other is knight:
+            continue
         other.x = other.home_x = 2800.0
         other.y = other.home_y = 1000.0 + index * 70.0
     knight.x = knight.home_x = 1724.0

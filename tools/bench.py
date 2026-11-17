@@ -76,10 +76,11 @@ def main() -> None:
     game.player.x, game.player.y = 1500.0, 1080.0
     game.camera.snap(game.player.x + game.player.look[0],
                      game.player.y + game.player.look[1])
-    bench(game, "exploration frame - open plaza", 45)
+    bench(game, "exploration frame - open plaza, live spawns", 45)
 
-    # Busy combat frame: five knights near the plaza, a chained combo, spin and
-    # finisher novas, sparks, damage numbers, enemy bars and the combo readout.
+    # Busy combat frame: the three archetypes near the plaza, a chained combo,
+    # spin and finisher novas, sparks, damage numbers, enemy bars and the combo
+    # readout.
     game.restart()
     game.combat.crit_chance = 0.15
     player = game.player
@@ -106,7 +107,7 @@ def main() -> None:
         if frame % 6 == 0:
             game.effects.spawn_impact(1724.0, 1380.0, heavy=(frame % 30 == 0))
 
-    bench(game, "combat frame - five knights, combo + particles + bars",
+    bench(game, "combat frame - three archetypes, combo + particles + bars",
           90, pulse)
 
     # Void Essence frame: every skill firing, waves travelling, eclipse rings,

@@ -357,13 +357,31 @@ NON_SOLID = {
     "bush_i", "bush_j", "bush_h", "shrine", "lantern_tall", "lamp_post",
 }
 
-# Fallen Knight outposts.  (x, y, patrol radius, initial facing)
+# Validated enemy outposts.  (x, y, initial facing)
+#
+# The spawner never places an enemy here blindly: every candidate is checked
+# against static solids, the player's current position and the other enemies.
+# The list is deliberately larger than the active cap so a blocked point can be
+# skipped instead of stacking a body inside a house.
+ENEMY_SPAWN_POINTS: list[tuple[float, float, str]] = [
+    (1740.0, 1200.0, "left"),
+    (1180.0, 1390.0, "down"),
+    (2380.0, 1130.0, "down"),
+    (1780.0, 1950.0, "up"),
+    (2000.0, 1380.0, "left"),
+    (1840.0, 1980.0, "up"),
+    (980.0, 1180.0, "right"),
+    (2100.0, 1080.0, "left"),
+    (1260.0, 1760.0, "up"),
+    (2520.0, 1250.0, "left"),
+    (1600.0, 1660.0, "up"),
+    (900.0, 1560.0, "up"),
+    (2260.0, 1640.0, "left"),
+    (1120.0, 1020.0, "down"),
+]
+ENEMY_SPAWN_RADIUS = 82.0
+
+# Backwards-compatible view used by older tooling: (x, y, radius, facing).
 ENEMY_SPAWNS: list[tuple[float, float, float, str]] = [
-    (1740.0, 1200.0, 90.0, "left"),
-    (1180.0, 1390.0, 105.0, "down"),
-    (2380.0, 1130.0, 120.0, "down"),
-    (1780.0, 1950.0, 100.0, "up"),
-    (1600.0, 1215.0, 70.0, "down"),
-    (2000.0, 1380.0, 90.0, "left"),
-    (1840.0, 1980.0, 80.0, "up"),
+    (x, y, ENEMY_SPAWN_RADIUS, facing) for x, y, facing in ENEMY_SPAWN_POINTS
 ]

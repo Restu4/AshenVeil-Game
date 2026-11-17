@@ -1,9 +1,13 @@
-"""Combat orchestration: swings, hits, enemies, engagement and feedback.
+"""Combat orchestration: swings, hits, enemies, spawning and feedback.
 
-The manager is the single place where a player swing meets a knight.  It owns
-per-swing hit bookkeeping (one hit per enemy per swing), critical rolls, hit
-stop, attack-direction knockback, the enemy attack token and a light separation
-pass so a pack never stacks into one silhouette.
+The manager is the single authority where a player swing or a void skill meets
+an enemy.  It owns per-swing hit bookkeeping, critical rolls, hit stop,
+attack-direction knockback, the enemy attack token, light separation, the
+projectile system and the finite spawner.
+
+Enemy AI still applies its own melee/projectile damage to the player, but all
+feedback (shake, vignette, damage numbers) flows through this one place so the
+three archetypes feel consistent.
 """
 from __future__ import annotations
 
@@ -16,19 +20,17 @@ from scripts.combat_config import (
     CRIT_KNOCKBACK_MULT,
     CRIT_MULTIPLIER,
     DASH_SHAKE,
-    ENEMY_ATTACK_RANGE,
     ENEMY_ATTACK_TOKEN_RANGE,
     ENEMY_SEPARATION,
-    ENEMY_SPAWN_COOLDOWN,
-    ENEMY_SPAWN_JITTER,
     HIT_STOP_FINISHER,
     HIT_STOP_HEAVY,
     HIT_STOP_NORMAL,
     SHAKE_PLAYER_HURT,
     SHAKE_PLAYER_HURT_TIME,
 )
-from scripts.enemy import FallenKnight
-from scripts.village_layout import ENEMY_SPAWNS
+from scripts.enemy import Enemy
+from scripts.projectile import ProjectileSystem
+from scripts.spawner import Spawner
 
 
 class CombatManager:
@@ -38,8 +40,8 @@ class CombatManager:
         self.player = player
         self.camera = camera
         self.effects = effects
-        self.enemies: list[FallenKnight] = []
-        self.engaged: FallenKnight | None = None
+        self.enemies: list[Enemy] = []
+        self.engaged: Enemy | None = None
         self.engaged_timer = 0.0
 
         # Critical hits are rolled once per enemy per swing.  Tests pin this.
@@ -55,23 +57,19 @@ class CombatManager:
         self._swing_landed = False
         self._swing_crit = False
         self._last_stage = 0
-        self._attack_token: FallenKnight | None = None
+        self._attack_token: Enemy | None = None
         self._separation_pairs = 0
         # Set by the skill manager so sword and magic kills both reward energy.
         self.on_kill = None
+
+        self.spawner = Spawner(assets, world, player, self)
+        self.projectiles = ProjectileSystem(assets, effects)
         self.restart()
 
     # ------------------------------------------------------------------
     def restart(self) -> None:
-        self.enemies = []
-        for index, (x, y, radius, facing) in enumerate(ENEMY_SPAWNS, start=1):
-            knight = FallenKnight(self.assets, index, x, y, radius, facing)
-            # Stagger the first permission window so the pack does not all
-            # wind up on the same frame after a fresh spawn.
-            knight.attack_cooldown = (
-                ENEMY_SPAWN_COOLDOWN + ENEMY_SPAWN_JITTER * (index - 1)
-            )
-            self.enemies.append(knight)
+        self.projectiles.clear()
+        self.spawner.reset()
         self.engaged = None
         self.engaged_timer = 0.0
         self.hit_stop = 0.0
@@ -82,6 +80,7 @@ class CombatManager:
         self._swing_crit = False
         self._last_stage = 0
         self._attack_token = None
+        self._separation_pairs = 0
 
     # ------------------------------------------------------------------
     # Hit stop
@@ -117,9 +116,12 @@ class CombatManager:
 
         for enemy in self.enemies:
             enemy.update(dt, player, collision)
-        self.enemies = [e for e in self.enemies if not e.removed]
+        self._consume_enemy_signals()
 
+        self.enemies[:] = [e for e in self.enemies if not e.removed]
+        self.projectiles.update(dt, player, collision)
         self._separate_enemies(collision)
+        self.spawner.update(dt)
 
         if combat.consume_hurt_signal():
             self.effects.spawn_player_hurt()
@@ -127,6 +129,27 @@ class CombatManager:
             self.camera.shake(SHAKE_PLAYER_HURT, SHAKE_PLAYER_HURT_TIME)
 
         self._update_engagement(dt)
+
+    # ------------------------------------------------------------------
+    def _consume_enemy_signals(self) -> None:
+        """Turn one-shot AI signals into projectiles and swipe feedback."""
+        for enemy in self.enemies:
+            projectile = enemy.pending_projectile
+            if projectile is not None:
+                ox, oy, nx, ny, blocked = projectile
+                self.projectiles.spawn_from_enemy(enemy, (ox, oy), (nx, ny),
+                                                  blocked)
+                enemy.pending_projectile = None
+
+            swipe = enemy.pending_swipe
+            if swipe is not None:
+                x, y, facing, hit = swipe
+                self.effects.spawn_enemy_swipe(
+                    x, y, facing, enemy.archetype.swipe_color, hit
+                )
+                if hit:
+                    self.camera.shake(2.2, 0.10)
+                enemy.pending_swipe = None
 
     # ------------------------------------------------------------------
     def _spawn_swing_visual(self) -> None:
@@ -312,10 +335,10 @@ class CombatManager:
 
     # ------------------------------------------------------------------
     def _refresh_attack_token(self) -> None:
-        """Only one knight may own a wind-up at a time."""
+        """Only one enemy may own a wind-up at a time (fair timing)."""
         current = self._attack_token
         if current is not None and (not current.alive
-                                    or current.state != enemy_ai.ATTACK):
+                                    or current.state not in enemy_ai.ATTACK_STATES):
             current = None
 
         if current is None:
@@ -327,7 +350,7 @@ class CombatManager:
                     continue
                 distance = math.hypot(enemy.x - player.x,
                                       enemy.y - player.y)
-                if distance > ENEMY_ATTACK_RANGE * ENEMY_ATTACK_TOKEN_RANGE:
+                if distance > enemy.attack_range * ENEMY_ATTACK_TOKEN_RANGE:
                     continue
                 if distance < best_distance:
                     best = enemy
@@ -347,13 +370,17 @@ class CombatManager:
                 dx = second.x - first.x
                 dy = second.y - first.y
                 distance = math.hypot(dx, dy)
-                if distance >= ENEMY_SEPARATION:
+                separation = max(
+                    ENEMY_SEPARATION,
+                    first.half_w + second.half_w + 6.0,
+                )
+                if distance >= separation:
                     continue
                 if distance < 0.001:
                     nx, ny = (1.0, 0.0)
                 else:
                     nx, ny = dx / distance, dy / distance
-                push = (ENEMY_SEPARATION - distance) * 0.5
+                push = (separation - distance) * 0.5
                 self._push(first, -nx * push, -ny * push, collision)
                 self._push(second, nx * push, ny * push, collision)
                 self._separation_pairs += 1
@@ -410,9 +437,17 @@ class CombatManager:
                 self.engaged = None
 
     # ------------------------------------------------------------------
+    @property
+    def alive_count(self) -> int:
+        return sum(1 for enemy in self.enemies if enemy.alive)
+
+    def draw_projectiles(self, target, camera) -> None:
+        self.projectiles.draw(target, camera)
+
     def debug_draw(self, target, camera) -> None:
         for enemy in self.enemies:
             enemy.debug_draw(target, camera.offset)
+        self.projectiles.debug_draw(target, camera)
         if self._attack_token is not None and self._attack_token.alive:
             enemy = self._attack_token
             sx, sy = camera.to_screen(enemy.x, enemy.y - 74)

@@ -51,8 +51,17 @@ class Game:
         self.running = True
         self.debug = False
         self.time = 0.0
-        # Dash attack key is configurable vertically through combat_config.
-        self.dash_key = getattr(pygame, f"K_{DASH_KEY_NAME.lower()}", pygame.K_e)
+        # Skill keys are fixed to Q/E/R/F.  The dash key is configurable, but it
+        # must never alias a skill key or one keypress would mean two things.
+        self.skill_keys = {
+            "Q": pygame.K_q,
+            "E": pygame.K_e,
+            "R": pygame.K_r,
+            "F": pygame.K_f,
+        }
+        self.dash_key = getattr(pygame, f"K_{DASH_KEY_NAME.lower()}", pygame.K_c)
+        if self.dash_key in self.skill_keys.values():
+            self.dash_key = pygame.K_c
         self._scaled: pygame.Surface | None = None
         self._scaled_size = (0, 0)
         if not IS_WEB:
@@ -87,14 +96,13 @@ class Game:
                 self.running = False
             elif event.key == pygame.K_SPACE:
                 self.player.request_dodge()
-            elif event.key == pygame.K_q:
-                self.skills.try_cast("Q")
-            elif event.key == pygame.K_e:
-                self.skills.try_cast("E")
-            elif event.key == pygame.K_r:
-                self.skills.try_cast("R")
-            elif event.key == pygame.K_f:
-                self.skills.try_cast("F")
+            elif event.key in self.skill_keys.values():
+                # Exactly one skill per keypress; the mapping is explicit so Q
+                # can never fire a second ability through another branch.
+                for skill_key, code in self.skill_keys.items():
+                    if event.key == code:
+                        self.skills.try_cast(skill_key)
+                        break
             elif event.key == self.dash_key:
                 self.player.request_dash()
             elif event.key in (pygame.K_F1, pygame.K_F3):
@@ -135,6 +143,7 @@ class Game:
         self.atmosphere.draw(self.canvas, self.camera, self.player)
         self.skills.draw_world(self.canvas, self.camera)
         self.effects.draw_world(self.canvas, self.camera)
+        self.combat.draw_projectiles(self.canvas, self.camera)
         self.skills.draw_overlay(self.canvas)
         self.effects.draw_overlay(self.canvas, self.camera)
         self.hud.draw(self.canvas, self.player, self.combat, self.camera,
@@ -151,7 +160,9 @@ class Game:
             draw_text(self.canvas,
                       f"STATE {self.player.state}  "
                       f"STAGE {self.player.combat.attack_stage}  "
-                      f"ENEMIES {len(self.combat.enemies)}",
+                      f"ENEMIES {self.combat.alive_count}  "
+                      f"SPAWNED {self.combat.spawner.total_spawned}"
+                      f"/{self.combat.spawner.max_total}",
                       24, 156, 1, (112, 255, 145), spacing=1)
             draw_text(self.canvas,
                       f"COMBO {self.player.combat.combo_count}  "
@@ -165,7 +176,11 @@ class Game:
                       f"R {self.skills.slash.timer:.1f}  "
                       f"F {self.skills.eclipse.timer:.1f}",
                       24, 180, 1, (188, 148, 255), spacing=1)
-            draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 192, 1,
+            draw_text(self.canvas,
+                      f"PROJ {len(self.combat.projectiles.projectiles)}  "
+                      f"TYPES {','.join(sorted({e.key for e in self.combat.enemies}))}",
+                      24, 192, 1, (188, 148, 255), spacing=1)
+            draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 204, 1,
                       (112, 255, 145), spacing=1)
 
     # ------------------------------------------------------------------

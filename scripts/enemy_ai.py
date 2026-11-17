@@ -1,33 +1,39 @@
-"""Delta-time AI for the Fallen Knight.
+"""Delta-time AI shared by every enemy archetype.
 
-State constants and steering live here; ``scripts/enemy.py`` owns the entity,
-animation and damage plumbing.  No imports from ``enemy`` means there is no
-circular dependency.
+The state machine is archetype-driven: melee enemies chase, telegraph and swing;
+ranged enemies keep their distance, retreat when crowded and fire a projectile.
+All tuning comes from the ``Enemy`` instance (which copies it from
+``enemy_config``), so this module never hard-codes a knight.
+
+States
+------
+IDLE          wander around the home point / stand still
+CHASE         close the distance or hold the preferred ranged band
+ATTACK_WINDUP readable telegraph, no damage yet
+ATTACK        the damage / projectile frame
+RECOVERY      committed follow-through, cannot turn yet
+RETREAT       ranged-only back-off after a shot or when crowded
+HURT          short stagger
+DEATH         corpse fade, then removal
+
+``PATROL`` is kept as a compatibility alias for the old wander state.
 """
 from __future__ import annotations
 
 import math
 
-from scripts.combat_config import (
-    ENEMY_ATTACK_COOLDOWN,
-    ENEMY_ATTACK_RANGE,
-    ENEMY_ATTACK_TOTAL,
-    ENEMY_ATTACK_WINDUP,
-    ENEMY_CHASE_SPEED,
-    ENEMY_DAMAGE,
-    ENEMY_DETECTION,
-    ENEMY_KNOCKBACK_DECAY,
-    ENEMY_LEASH,
-    ENEMY_MEMORY,
-    ENEMY_PATROL_SPEED,
-)
-
 IDLE = "IDLE"
 PATROL = "PATROL"
 CHASE = "CHASE"
+ATTACK_WINDUP = "ATTACK_WINDUP"
 ATTACK = "ATTACK"
+RECOVERY = "RECOVERY"
+RETREAT = "RETREAT"
 HURT = "HURT"
 DEATH = "DEATH"
+DEAD = DEATH
+
+ATTACK_STATES = frozenset((ATTACK_WINDUP, ATTACK, RECOVERY))
 
 FACING_VECTORS = {
     "down": (0.0, 1.0),
@@ -45,6 +51,9 @@ def facing_from_delta(dx: float, dy: float, fallback: str = "down") -> str:
     return "down" if dy > 0 else "up"
 
 
+# ---------------------------------------------------------------------------
+# Main update
+# ---------------------------------------------------------------------------
 def update_enemy(enemy, dt: float, player, collision) -> None:
     enemy.flash_timer = max(0.0, enemy.flash_timer - dt)
     enemy.attack_cooldown = max(0.0, enemy.attack_cooldown - dt)
@@ -59,14 +68,13 @@ def update_enemy(enemy, dt: float, player, collision) -> None:
             enemy.removed = True
         return
 
-    # Knockback is applied in every non-death state; it is part of HURT but
-    # also carries into the first frames of a chase.
+    # Knockback carries through every living state.
     _apply_knockback(enemy, dt, collision)
 
     if enemy.state == HURT:
         enemy.hurt_timer -= dt
         if enemy.hurt_timer <= 0.0:
-            enemy.state = CHASE if enemy.aggro_timer > 0.0 else PATROL
+            enemy.state = CHASE if enemy.aggro_timer > 0.0 else IDLE
             enemy.patrol_target = None
         _animate(enemy, dt)
         return
@@ -77,86 +85,192 @@ def update_enemy(enemy, dt: float, player, collision) -> None:
     player_dead = player.combat.dead
 
     # Detection and short-term memory.
-    if not player_dead and distance <= ENEMY_DETECTION:
-        enemy.aggro_timer = ENEMY_MEMORY
+    if not player_dead and distance <= enemy.detection:
+        enemy.aggro_timer = enemy.memory
         enemy.alerted = True
         if enemy.state in (IDLE, PATROL):
             enemy.state = CHASE
             enemy.patrol_target = None
             enemy.facing = facing_from_delta(dx, dy, enemy.facing)
 
-    # Leash so knights do not follow the player across the whole village.
+    # Leash so a pack does not follow the player across the whole village.
     home_distance = math.hypot(enemy.x - enemy.home_x, enemy.y - enemy.home_y)
-    if enemy.aggro_timer > 0.0 and home_distance > ENEMY_LEASH:
+    if enemy.aggro_timer > 0.0 and home_distance > enemy.leash:
         enemy.aggro_timer = 0.0
-        enemy.state = PATROL
+        enemy.state = IDLE
         enemy.patrol_target = None
 
-    if enemy.state == ATTACK:
-        _update_attack(enemy, dt, player, collision, distance)
+    # Attack sequence is committed until recovery ends.
+    if enemy.state in ATTACK_STATES:
+        _update_attack_state(enemy, dt, player, collision, distance)
+        _animate(enemy, dt)
+        return
+
+    if enemy.state == RETREAT:
+        _update_retreat(enemy, dt, player, collision, dx, dy, distance)
         _animate(enemy, dt)
         return
 
     if not player_dead and enemy.aggro_timer > 0.0:
-        hold = ENEMY_ATTACK_RANGE * (0.82 if enemy.can_attack else 1.28)
-        if (distance <= ENEMY_ATTACK_RANGE and enemy.attack_cooldown <= 0.0
-                and enemy.can_attack):
-            _start_attack(enemy, player, dx, dy)
+        if enemy.ranged:
+            _update_ranged(enemy, dt, player, collision, dx, dy, distance)
         else:
-            enemy.state = CHASE
-            if distance > hold:
-                speed = ENEMY_CHASE_SPEED
-                enemy.facing = facing_from_delta(dx, dy, enemy.facing)
-                _steer(enemy, dt, collision, dx / max(distance, 0.001),
-                       dy / max(distance, 0.001), speed)
-            else:
-                enemy.vx = enemy.vy = 0.0
+            _update_melee(enemy, dt, player, collision, dx, dy, distance)
     else:
-        _patrol(enemy, dt, collision)
+        _wander(enemy, dt, collision)
 
     _animate(enemy, dt)
 
 
 # ---------------------------------------------------------------------------
+# Melee
+# ---------------------------------------------------------------------------
+def _update_melee(enemy, dt, player, collision, dx, dy, distance) -> None:
+    in_range = distance <= enemy.attack_range
+    if (in_range and enemy.attack_cooldown <= 0.0 and enemy.can_attack
+            and _line_clear(enemy, player, collision)):
+        _start_attack(enemy, player, dx, dy)
+        return
+
+    enemy.state = CHASE
+    hold = enemy.attack_range * (0.82 if enemy.can_attack else 1.28)
+    if distance > hold:
+        enemy.facing = facing_from_delta(dx, dy, enemy.facing)
+        _steer(enemy, dt, collision, dx / max(distance, 0.001),
+               dy / max(distance, 0.001), enemy.chase_speed)
+    else:
+        enemy.vx = enemy.vy = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Ranged
+# ---------------------------------------------------------------------------
+def _update_ranged(enemy, dt, player, collision, dx, dy, distance) -> None:
+    # Crowded: back off.  This is a state (not a nudge) so the retreat reads.
+    if distance < enemy.retreat_distance:
+        enemy.state = RETREAT
+        enemy.state_time = 0.0
+        enemy.retreat_timer = enemy.retreat_time
+        return
+
+    if (distance <= enemy.attack_range and enemy.attack_cooldown <= 0.0
+            and enemy.can_attack and _line_clear(enemy, player, collision)):
+        _start_attack(enemy, player, dx, dy)
+        return
+
+    enemy.state = CHASE
+    enemy.facing = facing_from_delta(dx, dy, enemy.facing)
+    desired = enemy.preferred_distance
+    if distance > desired + 34.0:
+        _steer(enemy, dt, collision, dx / max(distance, 0.001),
+               dy / max(distance, 0.001), enemy.chase_speed)
+    elif distance < desired - 18.0:
+        _steer(enemy, dt, collision, -dx / max(distance, 0.001),
+               -dy / max(distance, 0.001), enemy.retreat_speed)
+    else:
+        enemy.vx = enemy.vy = 0.0
+
+
+def _update_retreat(enemy, dt, player, collision, dx, dy, distance) -> None:
+    enemy.retreat_timer -= dt
+    enemy.facing = facing_from_delta(dx, dy, enemy.facing)
+    # Retreat only while the player is still too close; then reopen fire.
+    if enemy.retreat_timer <= 0.0 or distance >= enemy.retreat_distance + 52.0:
+        enemy.state = CHASE if enemy.aggro_timer > 0.0 else IDLE
+        enemy.state_time = 0.0
+        return
+    _steer(enemy, dt, collision, -dx / max(distance, 0.001),
+           -dy / max(distance, 0.001), enemy.retreat_speed)
+
+
+# ---------------------------------------------------------------------------
+# Attack sequence
+# ---------------------------------------------------------------------------
 def _start_attack(enemy, player, dx: float, dy: float) -> None:
     if not enemy.can_attack:
         return
-    enemy.state = ATTACK
+    enemy.state = ATTACK_WINDUP
     enemy.state_time = 0.0
     enemy.attack_time = 0.0
     enemy.attack_hit_done = False
-    enemy.attack_cooldown = ENEMY_ATTACK_COOLDOWN
+    enemy.attack_cooldown = enemy.attack_cooldown_max
     enemy.facing = facing_from_delta(dx, dy, enemy.facing)
     enemy.animator.play("attack", enemy.facing, restart=True)
 
 
-def _update_attack(enemy, dt: float, player, collision, distance: float) -> None:
+def _update_attack_state(enemy, dt: float, player, collision,
+                         distance: float) -> None:
     enemy.vx = enemy.vy = 0.0
     enemy.attack_time += dt
-    if (not enemy.attack_hit_done
-            and enemy.attack_time >= ENEMY_ATTACK_WINDUP):
-        enemy.attack_hit_done = True
-        # The blow lands in a forward arc, so circling behind a knight or
-        # rolling through the swing avoids it.
-        fx, fy = FACING_VECTORS[enemy.facing]
-        in_front = ((player.x - enemy.x) * fx + (player.y - enemy.y) * fy)
-        in_front /= max(distance, 0.001)
-        if (distance <= ENEMY_ATTACK_RANGE + 14.0
-                and in_front > -0.15
-                and not player.combat.invulnerable
-                and not player.combat.dead):
-            chest_y = enemy.y - 18.0
-            if not collision.segment_blocked(enemy.x, chest_y,
-                                             player.x, player.y - 18.0, 3):
-                player.take_damage(ENEMY_DAMAGE, enemy.x, enemy.y)
-    if enemy.attack_time >= ENEMY_ATTACK_TOTAL:
-        enemy.state = CHASE if enemy.aggro_timer > 0.0 else PATROL
+    windup_end = enemy.windup
+    active_end = enemy.windup + enemy.active
+
+    if enemy.state == ATTACK_WINDUP and enemy.attack_time >= windup_end:
+        enemy.state = ATTACK
+        enemy.state_time = 0.0
+        if enemy.ranged:
+            _fire_projectile(enemy, player, collision)
+        else:
+            _resolve_melee(enemy, player, collision, distance)
+
+    elif enemy.state == ATTACK and enemy.attack_time >= active_end:
+        enemy.state = RECOVERY
+        enemy.state_time = 0.0
+
+    elif enemy.state == RECOVERY and enemy.attack_time >= enemy.attack_total:
+        if enemy.aggro_timer <= 0.0:
+            enemy.state = IDLE
+        elif enemy.ranged and distance < enemy.retreat_distance + 24.0:
+            enemy.state = RETREAT
+            enemy.retreat_timer = enemy.retreat_time
+        else:
+            enemy.state = CHASE
         enemy.patrol_target = None
         enemy.state_time = 0.0
 
 
+def _resolve_melee(enemy, player, collision, distance: float) -> None:
+    if enemy.attack_hit_done:
+        return
+    enemy.attack_hit_done = True
+    fx, fy = FACING_VECTORS[enemy.facing]
+    facing_dot = ((player.x - enemy.x) * fx + (player.y - enemy.y) * fy)
+    facing_dot /= max(distance, 0.001)
+    hit = False
+    if (distance <= enemy.attack_range + 14.0
+            and facing_dot > -0.15
+            and not player.combat.invulnerable
+            and not player.combat.dead):
+        if not collision.segment_blocked(enemy.x, enemy.y - 18.0,
+                                         player.x, player.y - 18.0, 3):
+            player.take_damage(enemy.damage, enemy.x, enemy.y)
+            hit = True
+    # Consumed by the manager for a short swipe arc + light shake.
+    enemy.pending_swipe = (enemy.x, enemy.y, enemy.facing, hit)
+
+
+def _fire_projectile(enemy, player, collision) -> None:
+    if enemy.attack_hit_done:
+        return
+    enemy.attack_hit_done = True
+    dx = player.x - (enemy.x + 10.0)
+    dy = (player.y - 18.0) - (enemy.y - 26.0)
+    length = math.hypot(dx, dy) or 1.0
+    nx, ny = dx / length, dy / length
+    origin_x = enemy.x + nx * 16.0
+    origin_y = enemy.y - 26.0 + ny * 8.0
+    # A wall between caster and target means the shot is wasted on the wall.
+    # Check the body-to-body line the AI uses, not the raised muzzle: a muzzle
+    # offset can otherwise poke through a thin fence and fire past it.
+    blocked = collision.segment_blocked(enemy.x, enemy.y - 18.0,
+                                        player.x, player.y - 18.0, 3)
+    enemy.pending_projectile = (origin_x, origin_y, nx, ny, blocked)
+
+
 # ---------------------------------------------------------------------------
-def _patrol(enemy, dt: float, collision) -> None:
+# Wandering / idle
+# ---------------------------------------------------------------------------
+def _wander(enemy, dt, collision) -> None:
     if enemy.patrol_wait > 0.0:
         enemy.patrol_wait -= dt
         enemy.state = IDLE
@@ -185,7 +299,15 @@ def _patrol(enemy, dt: float, collision) -> None:
     enemy.state = PATROL
     enemy.facing = facing_from_delta(dx, dy, enemy.facing)
     _steer(enemy, dt, collision, dx / distance, dy / distance,
-           ENEMY_PATROL_SPEED)
+           enemy.patrol_speed)
+
+
+# ---------------------------------------------------------------------------
+# Steering / knockback / animation
+# ---------------------------------------------------------------------------
+def _line_clear(enemy, player, collision) -> bool:
+    return not collision.segment_blocked(enemy.x, enemy.y - 18.0,
+                                         player.x, player.y - 18.0, 3)
 
 
 def _steer(enemy, dt: float, collision, nx: float, ny: float,
@@ -225,7 +347,7 @@ def _apply_knockback(enemy, dt: float, collision) -> None:
         enemy.knockback_x * dt, enemy.knockback_y * dt,
         enemy.half_w, enemy.half_h,
     )
-    decay = ENEMY_KNOCKBACK_DECAY * dt
+    decay = enemy.knockback_decay * dt
     enemy.knockback_x -= math.copysign(min(abs(enemy.knockback_x), decay),
                                        enemy.knockback_x)
     enemy.knockback_y -= math.copysign(min(abs(enemy.knockback_y), decay),
@@ -237,8 +359,11 @@ def _apply_knockback(enemy, dt: float, collision) -> None:
 
 
 def _animate(enemy, dt: float) -> None:
-    if enemy.state in (CHASE, PATROL):
+    if enemy.state in (CHASE, RETREAT, PATROL):
         enemy.animator.play("walk", enemy.facing)
     elif enemy.state == IDLE:
         enemy.animator.play("idle", enemy.facing)
+    elif enemy.state in ATTACK_STATES:
+        # Already started by _start_attack; do not restart every frame.
+        enemy.animator.play("attack", enemy.facing)
     enemy.animator.update(dt)

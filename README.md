@@ -2,11 +2,12 @@
 
 A first-playable, top-down dark fantasy **hack & slash** village built with
 **Python + Pygame-CE**, packaged for the browser with **Pygbag**. This slice is
-about atmosphere, exploration and fast multi-enemy swordplay: Fallen Knights
-roam the dying village and the player chains a five-hit combo, dodge-rolls
-through swings and dash-attacks across the plaza. On top of the swordplay sits
-**VOID ESSENCE**, a dark-magic system with a regenerating energy pool and four
-skills. There is no quest, inventory or boss system yet.
+about atmosphere, exploration and fast multi-enemy swordplay: Fallen Knights,
+Void Stalkers and Ashen Cultists roam the dying village while the player chains
+a five-hit combo, dodge-rolls through swings and dash-attacks across the plaza.
+On top of the swordplay sits **VOID ESSENCE**, a dark-magic system with a
+regenerating energy pool and four skills. There is no quest, inventory or boss
+system yet.
 
 The playable character uses the original ASHEN VEIL spritesheet (hooded figure,
 black face, single white eye, large back sword, cape and sandals). The village
@@ -42,26 +43,43 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
   - `F` **ECLIPSE** — a 0.55 s wind-up that darkens the screen, then a
     220 px expanding detonation for 100 damage with heavy knockback and camera
     shake, 60 energy, 18 s cooldown.
-- **Void Essence HUD** — a charcoal/purple panel under the vitality bar with a
-  segmented energy bar, four icon slots, key labels, costs, shrinking cooldown
-  overlays, a disabled state when unaffordable and a charging ring for Eclipse.
-  The health bar and all existing HUD elements are unchanged.
-- **Multi-enemy combat** — one swing damages every knight inside its hitbox
+- **Void Essence UI** — the four skills are compact 42 px icons in the
+  bottom-right strip, with key labels, costs, shrinking cooldown overlays, a
+  dimmed unaffordable state and a charging ring for Eclipse.
+- **Multi-enemy combat** — one swing damages every enemy inside its hitbox
   exactly once, with independent reactions. Heavy links use a radial hitbox.
   Knockback follows the sword's travel direction, and a light separation pass
   keeps the pack from stacking into one silhouette.
 - **Critical hits** — 18% chance for ×1.7 damage and ×1.25 knockback, with
   gold sparks, a bigger damage number and a `CRITICAL` HUD flash.
-- **Fallen Knight enemies** — a purpose-built 64×64 pixel-art undead sentinel
-  (idle, walk, attack, hurt, death) with delta-time IDLE/PATROL/CHASE/ATTACK/
-  HURT/DEATH AI, 230 px detection, 44 px attack range, 12 damage, a readable
-  wind-up ring, collision sliding, obstacle avoidance and leashing. Seven
-  knights spawn in the village. A single attack token means only one knight
-  winds up at a time, so damage is never an unavoidable simultaneous burst.
+- **Three enemy archetypes** — one entity and one AI state machine, with every
+  gameplay number in `scripts/enemy_config.py`:
+  - **FALLEN KNIGHT** — 100 HP, 12 damage, 1.35 s cooldown and a deliberately
+    long 0.40 s wind-up. Reuses the original generated 64×64 undead sentinel
+    spritesheet.
+  - **VOID STALKER** — 65 HP, the fastest archetype (152 px/s) with quick
+    0.22 s telegraphed claws for 7 damage and a 0.82 s cooldown.
+  - **ASHEN CULTIST** — 75 HP, holds a ~205 px preferred band, retreats when
+    the player closes inside 140 px and fires a visible purple bolt
+    (10 damage, 250 px/s, 470 px range).
+  - Stalker and cultist art are procedural 64×64 pixel-art frames cached and
+    shared between instances (`scripts/enemy_art.py`); enemies are never drawn
+    as plain rectangles.
+- **State-based enemy AI** — `IDLE`/`PATROL` → `CHASE` → `ATTACK_WINDUP` →
+  `ATTACK` → `RECOVERY`, plus `RETREAT` (ranged), `HURT` and `DEATH`.
+  Detection, leash, short-term memory, light separation, collision sliding,
+  Y-sorting, a single attack token and line-of-sight checks keep fights fair:
+  no melee swing or bolt passes through a wall and a committed wind-up can be
+  dodged or rolled behind.
+- **Controlled spawning** — a small opening group of one knight, one stalker
+  and one cultist; validated spawn points that never overlap solids, the player
+  or another body; a configurable active cap of 6 and a finite total cap of 9,
+  so the village eventually runs dry instead of spawning forever.
 - **Combat feedback** — six pre-rendered purple slash styles, radial novas on
-  the spin and finisher, impact sparks, floating damage numbers, enemy hit
-  flash, attack-direction knockback, 35–105 ms hit stop, light camera shake and
-  a stronger finisher flash.
+  the spin and finisher, impact sparks, enemy swipe arcs, purple projectile
+  pops, floating 2×/3× damage numbers, clear enemy hit flash, attack-direction
+  knockback, 35–105 ms hit stop, light camera shake and a stronger finisher
+  flash. Heavier links produce stronger shake and hit stop than quick links.
 - **Pixel-aware collision** with sliding along walls, houses, gates, trees and
   props, plus solid world borders.
 - **Smooth clamped camera** with subtle look-ahead, Y-sorted props and player,
@@ -71,11 +89,14 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
   pools, so the runtime only draws a small animated flame bloom.
 - **Night atmosphere** — moon haze, drifting fog, ash, lantern motes, footstep
   dust, a cold player aura and a vignette.
-- **Custom pixel HUD** — vitality bar, a DASH cooldown gauge, level badge,
-  “ASHEN VEIL” title treatment, controls hint, an intro card, a combo counter
-  with five chain pips, a critical-hit flash, floating enemy health bars, the
-  engaged-knight bar, and the Void Essence panel (energy bar + four skill
-  slots). Cached surfaces; a “YOU DIED” veil with restart.
+- **Compact dark-fantasy HUD** — unobtrusive top-left vitality bar
+  (`20,20` · 204×13 px) in muted crimson, a dark-violet Void bar directly
+  below (`20,44` · 172×9 px), a 120×3 dash gauge at `20,57`, four 42 px skill
+  icons in a 186 px bottom-right strip (`1074,658`), a small 120×52 combo
+  readout at `1140,16`, a 300×46 engaged-target plate top-centre, floating
+  48×4 enemy bars and a 438×32 control hint. Cached surfaces only; the fixed
+  1280×720 canvas is nearest-neighbour letterboxed on resize. A “YOU DIED”
+  veil still offers restart.
 - **Browser build** via Pygbag with an async-compatible game loop.
 
 ## Controls
@@ -100,9 +121,12 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
 The help bar hides itself after a short while; press `H` to bring it back. The
 browser builds capture the mouse on the canvas, so click once to focus before
 using keyboard controls. After death only `Enter`, `Space` or a click restarts
-the run, so `R` is free for VOID SLASH. The dash key is configurable via
+the run, so `R` is free for VOID SLASH. Skill keys are bound explicitly to
+`Q`/`E`/`R`/`F`, and the dash key is guarded so it can never alias a skill:
+one keypress casts at most one ability. The dash key is configurable via
 `DASH_KEY_NAME` in `scripts/combat_config.py`; skill keys, costs and cooldowns
-live in `scripts/skill_config.py`.
+live in `scripts/skill_config.py`; enemy stats, spawn caps and projectile
+tuning live in `scripts/enemy_config.py`.
 
 ## Combat tuning
 
@@ -123,8 +147,28 @@ All values live in `scripts/combat_config.py`.
   i-frames.
 - Criticals: 18% chance, ×1.7 damage, ×1.25 knockback.
 - Hit stop: 35 ms normal, 70 ms heavy, 105 ms finisher.
-- Fallen Knight: 100 HP, 12 damage, 1.35 s attack cooldown, 0.40 s wind-up,
-  0.80 s total swing. One knight holds the attack token at a time.
+### Enemy archetypes
+
+Every value lives in `scripts/enemy_config.py`; the AI reads them from the
+enemy instance and hard-codes no archetype.
+
+| Enemy | HP | Damage | Cooldown | Wind-up | Active | Recovery | Chase | Detection |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| FALLEN KNIGHT | 100 | 12 melee | 1.35 s | 0.40 s | 0.12 s | 0.28 s | 96 px/s | 230 px |
+| VOID STALKER | 65 | 7 melee | 0.82 s | 0.22 s | 0.08 s | 0.16 s | 152 px/s | 320 px |
+| ASHEN CULTIST | 75 | 10 bolt | 2.15 s | 0.55 s | 0.10 s | 0.30 s | 78 px/s | 400 px |
+
+- Cultist: preferred distance 205 px, retreats inside 140 px at 132 px/s for
+  0.85 s, bolt speed 250 px/s, damage 10, radius 7 px, range 470 px. At most
+  12 enemy projectiles exist at once; each lives 3 s and dies on a wall.
+- Spawning: opening group 3, active cap 6, total cap 9 (including the opening
+  group), reinforcement interval 9 s, minimum distance to the player 250 px
+  for the opening group / 420 px for reinforcements, 86 px between enemies and
+  ±22 px jitter around the 14 validated spawn points.
+- Detection, memory (3.6 s knight / 4.0 s stalker / 4.6 s cultist), leash
+  (700 / 900 / 820 px) and separation (30 px) are per-archetype configurable.
+- One enemy holds the attack token at a time (range ×1.7), so damage is never
+  an unavoidable simultaneous burst.
 - Player: 100 HP, 0.75 s post-hit invulnerability.
 
 ## Void Essence tuning
@@ -246,20 +290,24 @@ scripts/
   skill_manager.py          Skill orchestration, energy, waves, Eclipse, kill hook
   skills/                   Per-skill casts (base, burst, shadow step, slash, eclipse)
   skill_effects.py          Capped purple particles, rings, afterimages, dark overlay
-  skill_hud.py              Void Essence energy bar and four skill slots
+  skill_hud.py              Bottom-right four-slot skill strip and cooldowns
   health.py                 Clamped health pool shared by player and enemies
   hitbox.py                 Arc and radial attack volumes with knock direction
-  enemy.py                  Fallen Knight entity: animation, health, damage, drawing
-  enemy_ai.py               Delta-time IDLE/PATROL/CHASE/ATTACK/HURT/DEATH AI
-  combat_manager.py         Hits, crits, hit stop, attack token, separation, feedback
-  effects.py                Slash arcs, novas, particles, damage numbers, flashes
+  enemy_config.py           Archetype stats, spawn caps and projectile tuning
+  enemy.py                  Generic archetype-driven enemy: flash, knockback, death
+  enemy_ai.py               IDLE/CHASE/WINDUP/ATTACK/RECOVERY/RETREAT/HURT/DEATH AI
+  enemy_art.py              Procedural cached pixel art for stalker and cultist
+  projectile.py             Capped wall-aware enemy bolts with impact effects
+  spawner.py                Validated finite spawning with active/total caps
+  combat_manager.py         Hits, crits, hit stop, attack token, separation, spawns
+  effects.py                Slashes, novas, particles, swipe arcs, damage numbers
   combat_ui.py              Combo counter, crit flash, enemy bars and the death veil
   collision.py              Prop footprints, spatial hash, sliding movement
   camera.py                 Smooth clamped camera and world→screen conversion
   village_layout.py         Canonical roads, patches, props, lights, spawn
   world.py                  Prop instances, culling, Y-sorting, ground blit
   atmosphere.py             Night overlay, glows, fog, ash, motes, dust, vignette
-  hud.py                    Cached HUD panels, bars, title, help, intro
+  hud.py                    Compact HP/Void/dash bars, help and intro
   pixel_font.py             5×7 bitmap font and text renderer
 
 tools/                      Development only (not shipped to the web build)
@@ -267,7 +315,7 @@ tools/                      Development only (not shipped to the web build)
   bake_ground.py            Rebakes assets/generated/ground.png
   preview.py                Headless landmark + combat + skill screenshots
   bench.py                  Headless draw benchmark (exploration/combat/skills)
-  test_combat.py            Headless functional checks (191 assertions)
+  test_combat.py            Headless functional checks (211 assertions)
   generate_fallen_knight.py Regenerates the Fallen Knight sheet
 
 screenshots/                Landmark preview renders from tools/preview.py
@@ -295,7 +343,7 @@ roads, plaza and static light pools stay aligned with props and collision.
   rectangle instead of compositing hundreds of tiles.
 - Props are culled against the camera view and sorted by ground contact before
   drawing.
-- HUD panels, title, help and intro are pre-rendered once.
+- HUD panels, help and intro are pre-rendered once.
 - Lantern bloom is capped at a small radius because the wide light pools are
   baked into the ground; fog was reduced to six blobs and footstep-dust scales
   are cached.
@@ -307,57 +355,66 @@ roads, plaza and static light pools stay aligned with props and collision.
 - Hit stop freezes simulation only (`CombatManager.consume_hit_stop`), while
   the HUD, input and intro timing keep real delta time, so responsiveness is
   preserved.
-- Enemy animation sheets are shared between all Fallen Knights; each knight
-  only stores its own animator indices and timers.
+- Enemy art is shared: the knight spritesheet is loaded once, and the
+  stalker/cultist procedural frames live in one module-level cache reused by
+  every instance; each enemy only stores its own animator indices and timers.
 - Skill visuals reuse one cached full-screen dark surface, cached dot sprites
   and plain capped lists; the wave and Eclipse sigil are cheap arc/circle
   draws rather than new per-frame surfaces.
 - `tools/bench.py` on the development machine reports roughly 6–8 ms for a full
-  1280×720 draw: exploration ≈ 8.3 ms, five-knight combat ≈ 6.8 ms and a frame
-  with all four skills firing ≈ 6.0 ms (world ≈ 2 ms, atmosphere ≈ 2–4 ms,
-  skill effects ≈ 0.3 ms, combat effects ≈ 0.3–0.8 ms, HUD ≈ 1.0–1.3 ms) with
-  the dummy video driver. Browser timing will differ.
+  1280×720 draw: exploration ≈ 6.2 ms, three-archetype combat ≈ 7.7 ms and a
+  frame with all four skills firing ≈ 7.2 ms (world ≈ 1.8–2.1 ms, atmosphere
+  ≈ 2.6–2.8 ms, skill effects ≈ 0.3 ms, combat effects ≈ 0.3–0.8 ms, HUD
+  ≈ 1.2–1.6 ms) with the dummy video driver. Browser timing will differ.
+- Enemy frames are shared caches: the knight spritesheet is loaded once and the
+  stalker/cultist procedural surfaces are generated once per animation frame,
+  then reused by every instance.
 
-## Verification status
+## Phase 4 verification
 
-`python tools/test_combat.py` runs **191** headless assertions covering:
+`python tools/test_combat.py` runs **211** headless assertions. Its twelve
+numbered sections map directly to the acceptance areas:
 
-- walking, running without stamina, the IDLE/WALK/RUN state surface and
-  legacy collision/camera clamping;
-- the full five-hit combo (20/22/25/30/45), one-link-at-a-time buffering,
-  rapid-input safety, combo auto-reset, heavy camera shake, novas and hit stop;
-- multi-enemy hits: one swing damages three knights exactly once each, the
-  radial spin/finisher hit the whole ring, and knockback follows the attack
-  direction rather than radiating from the player;
-- guaranteed critical hits (34 damage on the first link), crit HUD flash and
-  crit damage numbers;
-- dodge distance, i-frames, cooldown and the removal of stamina gating;
-- dash burst, front damage, cooldown and wall stops that never leave the player
-  inside geometry;
-- player damage, post-hit invulnerability, death, movement lock and restart
-  with all seven knights;
-- knight detection, chase, 12 damage, forward attack arc missing a player who
-  moves behind, patrol radius, hurt/knockback recovery, death and removal;
-- one attack token across a three-knight pack (no simultaneous wind-ups) and
-  the separation pass;
-- wall obstruction for both the sword (no cutting through stone) and knight
-  movement (never inside a house footprint);
-- **Void Essence:** starting/full energy, separate-from-HP resource, delta-time
-  8/s regeneration, clamping, spending and +8 kill rewards from both sword and
-  magic kills;
-- **all four skills:** burst cost/damage/radius/radial knockback/one-hit-per-
-  cast, shadow dash distance/i-frames/wall collision/cooldown, wave travel,
-  multi-enemy single hit, range expiry and facing, and Eclipse wind-up,
-  no-damage-before-detonation, 100 damage, radius, knockback, darkening,
-  camera shake, 18 s cooldown and no double-cast while active;
-- insufficient-energy refusal without spending, magic never damaging the
-  player, skill particles staying under the configured cap, and the Void
-  Essence HUD rendering purple when full, draining when empty, exposing four
-  keyed slots with costs, and disabling skills at zero energy;
-- synthetic mouse/keyboard events (LMB, RMB, C, Q, E, R, F, Space, Enter),
-  R no longer restarting after death, click restart, six awaited frames of the
-  async loop and full-resolution frames with HUD, combo readout, enemy bars,
-  debug overlays, skill HUD and the death veil.
+1. **Movement, run, collision and camera** — walking, unrestricted running,
+   the IDLE/WALK/RUN surface, house blocking and camera clamping.
+2. **Five-hit combo, dodge and dash** — 20/22/25/30/45 damage, one-link-at-a-
+   time buffering, rapid-input safety, auto-reset, guaranteed crits,
+   multi-enemy single hits, knockback direction, dash i-frames, cooldown and
+   wall stops.
+3. **Enemy archetypes and configurable stats** — all three keys and HP values
+   (100/65/75), speed ordering, wind-up ordering, ranged flags, cultist
+   projectile damage, start-group composition, and procedural art that is
+   non-empty, 64 px sourced and cache-shared.
+4. **AI states** — every state constant, the explicit committed wind-up →
+   attack → recovery sequence, exactly one 12-damage knight hit, a swing that
+   misses a player who rolls behind it, and idle/patrol near home with no
+   player nearby.
+5. **HURT and DEATH** — flash timer, knockback travel, recovery, lethal hit,
+   death state and removal after the fade.
+6. **Ranged cultist** — retreat when crowded (the gap grows), visible wind-up,
+   exactly one bolt, purple colour, 10 damage applied once, impact particles
+   and the live-projectile cap.
+7. **Walls** — melee through a fence refuses damage, a blocked cast creates no
+   bolt (only a harmless impact), while clear plaza and stone-wall lines behave
+   correctly.
+8. **Feedback** — 2×/3× damage-number sizes, impact/swipe/projectile effects,
+   particle caps, and heavier shake plus longer hit stop on the spin.
+9. **Compact HUD and scaling** — HP 204×13, Void 172×9, dash 120×3, 42 px
+   icons at `1074,658`, the 300×46 engaged plate, the 120×52 combo block, the
+   438×32 hint, muted crimson/dark-violet pixels, empty-pool drain, cached
+   panels, and letterboxing a 1000×1000 window to 1000×562 while keeping the
+   1280×720 internal canvas.
+10. **Spawner** — small start group, spawn log, 14 points > 6 active cap, no
+    solid/player/enemy overlap, active cap blocks update spawning, total cap 9
+    is finite, and exhausted spawning never restarts.
+11. **One cast per keypress** — explicit Q/E/R/F map, dash key never aliases a
+    skill, Q spends only burst (80 left), starts only the burst cooldown and
+    never dashes; repeated Q during cooldown spends nothing; E/R/F each cast
+    only their own ability.
+12. **Pygbag** — async entry point, per-frame `await asyncio.sleep(0)`,
+    emscripten detection, desktop `asyncio.run`, `pygbag.ini`, the built
+    `index.html`, and an archive containing `main.py` and
+    `scripts/projectile.py` with `tools/` excluded.
 
 Also verified:
 
@@ -367,9 +424,13 @@ Also verified:
   `skill_shadow_step.png`, `skill_void_slash.png`,
   `skill_eclipse_windup.png`, `skill_eclipse_blast.png`).
 - `python tools/bench.py` completes all three scenarios and reports the
-  draw-phase timings above; the skill-effect lists stay within their caps.
+  draw-phase timings above; the skill and combat effect lists stay within
+  their caps.
+- `python -m compileall -q scripts main.py settings.py tools` completes without
+  errors.
 - `python -m pygbag --build --title "ASHEN VEIL" .` produces a browser build in
-  `build/web/`; serving `build/web/` returns the page and APK with HTTP 200.
+  `build/web/`; serving that directory returns `index.html`, `game.tar.gz` and
+  `game.apk` with HTTP 200 (archive ≈ 7.7 MB).
 - A live interactive browser session (real input, audio, canvas display) still
   needs a manual check in your own browser; this environment cannot verify
   actual in-browser behaviour. The async loop, event handlers and rendering
@@ -384,12 +445,28 @@ Also verified:
 - The Fallen Knight has `idle`, `walk`, `attack`, `hurt` (all four directions)
   and one `death_down` row. Non-down death directions fall back to
   `death_down`; `death` reads as the knight collapsing into ash.
+- The Void Stalker and Ashen Cultist have no source sheets. Their idle, walk,
+  attack, hurt and death frames are drawn procedurally into 64×64 surfaces by
+  `scripts/enemy_art.py`, using the same chunky pixel style, and cached. They
+  have one art set per archetype rather than per-direction attack variants.
 - No new frames were invented for the player. The knight sheet is generated
   from code in `tools/generate_fallen_knight.py`, not reused player art.
-- The project currently has **no audio system or sound assets**. The Void skills
-  therefore have distinct visuals, timings, camera shake and hit stop, but no
-  sound effects were added; adding audio would require a new mixer module and
-  assets, which is outside this phase.
+- The project currently has **no audio system or sound assets**. Enemy attacks,
+  projectiles and the Void skills therefore have distinct visuals, timings,
+  camera shake and hit stop, but no sound effects were added; adding audio
+  would require a new mixer module and assets, which is outside this phase.
+
+## Remaining issues
+
+- In-browser behaviour (real input focus, audio, actual frame pacing) still
+  needs a manual session in a real browser; the headless suite cannot prove it.
+- The cultist's bolt is a simple circle with a glow, not a fully animated
+  sprite, and all three archetypes share the same eight-direction facing model.
+- Enemy art is intentionally limited to one procedural set per new archetype;
+  there are no per-direction attack frames for the stalker or cultist.
+- Spawn points are hand-authored (14 validated locations); a runtime navigation
+  mesh or dynamic spawn placement is out of scope for this phase.
+- There is still no inventory, quest, new map or boss encounter, by design.
 
 ## Credits
 
