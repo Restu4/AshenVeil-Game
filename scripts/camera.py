@@ -14,6 +14,10 @@ class Camera:
         self.y = y
         self.offset_x = 0.0
         self.offset_y = 0.0
+        self.shake_strength = 0.0
+        self.shake_time = 0.0
+        self.shake_total = 0.0
+        self._shake_clock = 0.0
         self._clamp()
 
     def _clamp(self) -> None:
@@ -21,6 +25,14 @@ class Camera:
         half_h = SCREEN_H / 2
         self.x = max(half_w, min(WORLD_W - half_w, self.x))
         self.y = max(half_h, min(WORLD_H - half_h, self.y))
+
+    def shake(self, strength: float, duration: float = 0.16) -> None:
+        """Short, restrained impact shake; never stacks into chaos."""
+        if strength <= 0.0 or duration <= 0.0:
+            return
+        self.shake_strength = max(self.shake_strength * 0.4, strength)
+        self.shake_total = max(duration, 0.01)
+        self.shake_time = max(self.shake_time, duration)
 
     def snap(self, target_x: float, target_y: float) -> None:
         self.x = target_x
@@ -47,11 +59,22 @@ class Camera:
         self.y += (ty - self.y) * t
         self._clamp()
 
+        if self.shake_time > 0.0:
+            self.shake_time = max(0.0, self.shake_time - dt)
+            self._shake_clock += dt
+            if self.shake_time <= 0.0:
+                self.shake_strength = 0.0
+
     @property
     def offset(self) -> tuple[int, int]:
         """Integer world-to-screen offset (keeps pixel art stable)."""
         ox = int(round(self.x - SCREEN_W / 2))
         oy = int(round(self.y - SCREEN_H / 2))
+        if self.shake_time > 0.0 and self.shake_total > 0.0:
+            k = self.shake_time / self.shake_total
+            amp = self.shake_strength * k
+            ox += int(round(math.sin(self._shake_clock * 72.0) * amp))
+            oy += int(round(math.cos(self._shake_clock * 53.0) * amp * 0.65))
         ox = max(0, min(WORLD_W - SCREEN_W, ox))
         oy = max(0, min(WORLD_H - SCREEN_H, oy))
         return ox, oy

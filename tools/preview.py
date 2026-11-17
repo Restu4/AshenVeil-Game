@@ -63,7 +63,65 @@ def main() -> None:
         pygame.image.save(game.canvas, out / f"{name}.png")
         print(f"  {name:12s} {game.player.x:6.0f},{game.player.y:6.0f}  "
               f"camera={game.camera.offset}")
+
+    combat_shots(game, out)
     pygame.quit()
+
+
+def _place_duel(game) -> None:
+    """Put the player and one knight face to face on open plaza ground."""
+    game.restart()
+    game.hud.time = 9.0
+    player = game.player
+    player.x, player.y = 1660.0, 1210.0
+    player.facing = "right"
+    player.vx = player.vy = 0.0
+    knight = game.combat.enemies[0]
+    for index, other in enumerate(game.combat.enemies[1:], start=1):
+        other.x = other.home_x = 2800.0
+        other.y = other.home_y = 1000.0 + index * 70.0
+    knight.x = knight.home_x = 1724.0
+    knight.y = knight.home_y = 1210.0
+    knight.facing = "left"
+    from scripts import enemy_ai
+    knight.state = enemy_ai.CHASE
+    knight.aggro_timer = 3.0
+    knight.attack_cooldown = 5.0
+    game.camera.snap(player.x + player.look[0], player.y + player.look[1])
+
+
+def combat_shots(game, out: Path) -> None:
+    """Deterministic combat stills: wind-up, impact and the death veil."""
+    _place_duel(game)
+    player = game.player
+    player.request_attack()
+    for _ in range(9):                       # ~0.15 s: active hit frames
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "combat_impact.png")
+    print("  combat_impact  slash + damage number + engaged bar")
+
+    _place_duel(game)
+    player = game.player
+    knight = game.combat.enemies[0]
+    knight.health.current = 15.0
+    player.request_attack()
+    for _ in range(26):                      # hit, then the death dissolve
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "combat_kill.png")
+    print("  combat_kill    ash dissolve + hit flash")
+
+    _place_duel(game)
+    player = game.player
+    player.health = 15.0
+    player.combat.invuln = 0.0
+    player.take_damage(15.0, 1780.0, 1210.0)
+    for _ in range(40):
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "combat_death.png")
+    print("  combat_death   the death veil")
 
 
 if __name__ == "__main__":

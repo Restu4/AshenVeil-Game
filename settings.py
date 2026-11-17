@@ -19,6 +19,7 @@ WORLD_H = 2400
 TILE = 96
 
 PLAYER_SCALE = 2.0  # crisp integer upscale so the character reads on screen
+ENEMY_SCALE = 2.0
 
 PLAYER_WALK_SPEED = 118.0
 PLAYER_RUN_SPEED = 218.0
@@ -29,8 +30,8 @@ CAMERA_SMOOTH = 7.5
 
 STAMINA_MAX = 100.0
 STAMINA_DRAIN = 19.0
-STAMINA_REGEN = 13.0
-STAMINA_REGEN_DELAY = 0.65
+STAMINA_REGEN = 25.0
+STAMINA_REGEN_DELAY = 0.8
 
 # --------------------------------------------------------------------------
 # Palette — sampled from the character sheet + environment atlas.

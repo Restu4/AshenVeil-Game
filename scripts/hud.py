@@ -15,6 +15,7 @@ from settings import (
     SUBTITLE,
     TITLE,
 )
+from scripts.combat_ui import CombatUI
 from scripts.pixel_font import draw_text, text_width
 
 
@@ -31,6 +32,7 @@ class HUD:
         self._help = self._make_help()
         self._build = self._make_build_label()
         self._intro = self._make_intro()
+        self.combat_ui = CombatUI()
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -77,15 +79,17 @@ class HUD:
         return surf
 
     def _make_help(self) -> pygame.Surface:
-        surf = self._panel_frame(410, 32)
-        draw_text(surf, "WASD / ARROWS  MOVE", 20, 10, 1, (143, 132, 154),
-                  spacing=1)
-        draw_text(surf, "SHIFT  RUN", 202, 10, 1, (143, 132, 154), spacing=1)
-        draw_text(surf, "H  HINTS", 318, 10, 1, (112, 102, 124), spacing=1)
+        surf = self._panel_frame(444, 50)
+        draw_text(surf, "LMB - ATTACK", 16, 10, 1, (176, 152, 200), spacing=1)
+        draw_text(surf, "SPACE - DODGE", 146, 10, 1, (176, 152, 200), spacing=1)
+        draw_text(surf, "SHIFT - RUN", 316, 10, 1, (146, 134, 158), spacing=1)
+        draw_text(surf, "WASD - MOVE", 16, 28, 1, (146, 134, 158), spacing=1)
+        draw_text(surf, "H - HINTS", 160, 28, 1, (112, 102, 124), spacing=1)
+        draw_text(surf, "F1 - DEBUG", 278, 28, 1, (98, 90, 108), spacing=1)
         return surf
 
     def _make_build_label(self) -> pygame.Surface:
-        label = "PROTOTYPE BUILD 0.1"
+        label = "PROTOTYPE BUILD 0.2"
         w = text_width(label, 1, 1)
         surf = pygame.Surface((w, 9), pygame.SRCALPHA)
         draw_text(surf, label, 0, 0, 1, (72, 64, 82), spacing=1)
@@ -166,7 +170,7 @@ class HUD:
         pygame.draw.rect(target, (106, 94, 119), (x - 2, y - 2, w + 4, h + 4), 1)
 
     # ------------------------------------------------------------------
-    def draw(self, target: pygame.Surface, player) -> None:
+    def draw(self, target: pygame.Surface, player, enemy=None) -> None:
         target.blit(self._panel, (24, 22))
         draw_text(target, str(player.level), 68, 60, 3, BONE,
                   spacing=0, shadow=(0, 0, 0), center=True)
@@ -183,14 +187,20 @@ class HUD:
             draw_text(target, "SPENT",
                       bx + bw - text_width("SPENT", 1, 1), 66, 1,
                       (164, 102, 94), spacing=1)
-        self._bar(target, bx, 78, bw - 22, 9, player.stamina / player.stamina_max,
+        elif player.combat.blocked_flash > 0.0 and int(self.time * 12) % 2 == 0:
+            draw_text(target, "NO STAMINA",
+                      bx + bw - text_width("NO STAMINA", 1, 1), 66, 1,
+                      (164, 102, 94), spacing=1)
+        self._bar(target, bx, 78, bw - 22, 9, player.stamina.ratio,
                   (139, 146, 100), (177, 181, 126), (83, 92, 62), ticks=4)
 
         if self._intro_alpha() < 90:
             target.blit(self._title, ((SCREEN_W - 560) // 2, 12))
 
+        self.combat_ui.draw_enemy(target, enemy)
+
         if self.show_help:
-            target.blit(self._help, (24, SCREEN_H - 52))
+            target.blit(self._help, (24, SCREEN_H - 70))
         target.blit(self._build, (SCREEN_W - 24 - self._build.get_width(),
                                   SCREEN_H - 24))
 
@@ -198,6 +208,8 @@ class HUD:
         if a > 0:
             self._intro.set_alpha(a)
             target.blit(self._intro, (0, 0))
+
+        self.combat_ui.draw_death(target, player)
 
     def _intro_alpha(self) -> int:
         t = self.time

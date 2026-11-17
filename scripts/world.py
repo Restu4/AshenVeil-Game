@@ -68,7 +68,7 @@ class World:
     def update(self, dt: float) -> None:
         pass
 
-    def draw(self, target: pygame.Surface, camera, player) -> None:
+    def draw(self, target: pygame.Surface, camera, player, enemies=()) -> None:
         ox, oy = camera.offset
         view = camera.visible_rect(140)
 
@@ -88,6 +88,10 @@ class World:
                 visible.append((prop.sort_y, prop))
         drawables: list[tuple[float, object]] = [(y, p) for y, p in visible]
         drawables.append((player.sort_y, player))
+        for enemy in enemies:
+            if -160 <= enemy.x - ox <= self.canvas_w + 160 \
+                    and -220 <= enemy.y - oy <= self.canvas_h + 220:
+                drawables.append((enemy.sort_y, enemy))
         drawables.sort(key=lambda item: item[0])
 
         for _, item in drawables:

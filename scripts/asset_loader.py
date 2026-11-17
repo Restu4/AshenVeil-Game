@@ -5,7 +5,7 @@ import json
 
 import pygame
 
-from settings import ASSETS
+from settings import ASSETS, ENEMY_SCALE
 
 
 class Assets:
@@ -19,6 +19,7 @@ class Assets:
         self._images: dict[str, pygame.Surface] = {}
         self._character: pygame.Surface | None = None
         self._ground: pygame.Surface | None = None
+        self._enemy_art: dict[str, tuple[pygame.Surface, dict]] = {}
         self._shadow_cache: dict[tuple[int, int], pygame.Surface] = {}
 
     # ------------------------------------------------------------------
@@ -51,6 +52,36 @@ class Assets:
                 str(self.root / "generated" / "ground.png")
             ).convert()
         return self._ground
+
+    # ------------------------------------------------------------------
+    def enemy_art(self, name: str) -> tuple[pygame.Surface, dict]:
+        """Load an enemy sheet once, scaled for the shared render size.
+
+        Every knight re-uses the same surfaces; only the animator's frame
+        indices are per-enemy, which keeps memory flat in the browser.
+        """
+        cached = self._enemy_art.get(name)
+        if cached is not None:
+            return cached
+        directory = self.root / "enemies"
+        sheet = pygame.image.load(str(directory / f"{name}.png")).convert_alpha()
+        metadata = json.loads(
+            (directory / f"{name}.json").read_text(encoding="utf-8")
+        )
+        if ENEMY_SCALE != 1.0:
+            fw, fh = metadata["frame_size"]
+            sheet = pygame.transform.scale(
+                sheet,
+                (int(sheet.get_width() * ENEMY_SCALE),
+                 int(sheet.get_height() * ENEMY_SCALE)),
+            )
+            metadata = {
+                **metadata,
+                "frame_size": [int(fw * ENEMY_SCALE), int(fh * ENEMY_SCALE)],
+            }
+        cached = (sheet, metadata)
+        self._enemy_art[name] = cached
+        return cached
 
     # ------------------------------------------------------------------
     def soft_shadow(self, width: int, height: int) -> pygame.Surface:

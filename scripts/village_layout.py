@@ -356,3 +356,11 @@ NON_SOLID = {
     "bones", "skull", "skull_b", "plant_a", "plant_b", "plant_c", "plant_d",
     "bush_i", "bush_j", "bush_h", "shrine", "lantern_tall", "lamp_post",
 }
+
+# Fallen Knight outposts.  (x, y, patrol radius, initial facing)
+ENEMY_SPAWNS: list[tuple[float, float, float, str]] = [
+    (1740.0, 1200.0, 90.0, "left"),
+    (1180.0, 1390.0, 105.0, "down"),
+    (2380.0, 1130.0, 120.0, "down"),
+    (1780.0, 1950.0, 100.0, "up"),
+]

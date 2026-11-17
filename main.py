@@ -10,6 +10,8 @@ from settings import FPS, SCREEN_H, SCREEN_W
 from scripts.asset_loader import Assets
 from scripts.atmosphere import Atmosphere
 from scripts.camera import Camera
+from scripts.combat_manager import CombatManager
+from scripts.effects import Effects
 from scripts.hud import HUD
 from scripts.pixel_font import draw_text
 from scripts.player import Player
@@ -37,6 +39,9 @@ class Game:
         self.camera.snap(self.player.x + self.player.look[0],
                          self.player.y + self.player.look[1])
         self.atmosphere = Atmosphere(self.world.lights)
+        self.effects = Effects()
+        self.combat = CombatManager(self.assets, self.world, self.player,
+                                    self.camera, self.effects)
         self.hud = HUD()
         self.clock = pygame.time.Clock()
 
@@ -57,9 +62,23 @@ class Game:
                 self.window = pygame.display.set_mode(event.size, pygame.RESIZABLE)
             except pygame.error:
                 pass
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.player.combat.dead:
+                self.restart()
+            else:
+                self.player.request_attack()
         elif event.type == pygame.KEYDOWN:
+            if self.player.combat.dead:
+                if event.key == pygame.K_ESCAPE and not IS_WEB:
+                    self.running = False
+                elif event.key in (pygame.K_r, pygame.K_RETURN,
+                                   pygame.K_KP_ENTER, pygame.K_SPACE):
+                    self.restart()
+                return
             if event.key == pygame.K_ESCAPE and not IS_WEB:
                 self.running = False
+            elif event.key == pygame.K_SPACE:
+                self.player.request_dodge()
             elif event.key in (pygame.K_F1, pygame.K_F3):
                 self.debug = not self.debug
             elif event.key == pygame.K_h:
@@ -68,30 +87,47 @@ class Game:
                 pygame.display.toggle_fullscreen()
 
     # ------------------------------------------------------------------
+    def restart(self) -> None:
+        self.player.reset(SPAWN[0], SPAWN[1], SPAWN_FACING)
+        self.combat.restart()
+        self.effects.clear()
+        self.camera.snap(self.player.x + self.player.look[0],
+                         self.player.y + self.player.look[1])
+
+    # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
         keys = pygame.key.get_pressed()
         self.player.update(dt, keys, self.world.collision)
+        self.combat.update(dt)
         look_x, look_y = self.player.look
         self.camera.update(dt, self.player.x, self.player.y, look_x, look_y)
         self.world.update(dt)
         self.atmosphere.update(dt, self.player, self.camera)
+        self.effects.update(dt)
         self.hud.update(dt, self.player)
         self.time += dt
 
     # ------------------------------------------------------------------
     def draw(self) -> None:
-        self.world.draw(self.canvas, self.camera, self.player)
+        self.world.draw(self.canvas, self.camera, self.player, self.combat.enemies)
         self.atmosphere.draw(self.canvas, self.camera, self.player)
-        self.hud.draw(self.canvas, self.player)
+        self.effects.draw_world(self.canvas, self.camera)
+        self.effects.draw_overlay(self.canvas, self.camera)
+        self.hud.draw(self.canvas, self.player, self.combat.engaged)
         if self.debug:
             self.world.debug_draw(self.canvas, self.camera, self.player)
+            self.combat.debug_draw(self.canvas, self.camera)
             draw_text(self.canvas, f"FPS {int(self.clock.get_fps()):02d}",
                       24, 132, 1, (112, 255, 145), spacing=1)
             draw_text(self.canvas,
                       f"X {int(self.player.x)}  Y {int(self.player.y)}  "
                       f"SPD {int(self.player.speed)}",
                       24, 144, 1, (112, 255, 145), spacing=1)
-            draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 156, 1,
+            draw_text(self.canvas,
+                      f"STATE {self.player.state}  "
+                      f"ENEMIES {len(self.combat.enemies)}",
+                      24, 156, 1, (112, 255, 145), spacing=1)
+            draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 168, 1,
                       (112, 255, 145), spacing=1)
 
     # ------------------------------------------------------------------

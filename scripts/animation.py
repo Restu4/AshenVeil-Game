@@ -65,6 +65,10 @@ class CharacterAnimator:
         name = f"{action}_{direction}"
         if name not in self.animations:
             name = f"{action}_down"
+        if name not in self.animations and action in self.animations:
+            name = action
+        if name not in self.animations:
+            name = self.current_name
         if name == self.current_name and not restart:
             return
         self.current_name = name

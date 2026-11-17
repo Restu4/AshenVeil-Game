@@ -168,6 +168,38 @@ class CollisionWorld:
         return x, y, hit_x, hit_y
 
     # ------------------------------------------------------------------
+    def segment_blocked(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        thickness: float = 2.0,
+    ) -> bool:
+        """Sample a world-space segment against solids (wall obstruction)."""
+        dx = x2 - x1
+        dy = y2 - y1
+        distance = (dx * dx + dy * dy) ** 0.5
+        if distance < 1.0:
+            return False
+        steps = max(1, int(distance / 7.0))
+        for i in range(1, steps + 1):
+            t = i / steps
+            px = x1 + dx * t
+            py = y1 + dy * t
+            probe = pygame.Rect(
+                int(round(px - thickness)), int(round(py - thickness)),
+                max(2, int(round(thickness * 2))),
+                max(2, int(round(thickness * 2))),
+            )
+            if any(probe.colliderect(solid) for solid in self.nearby(probe)):
+                return True
+        return False
+
+    def rect_free(self, rect: pygame.Rect) -> bool:
+        return not any(rect.colliderect(solid) for solid in self.nearby(rect))
+
+    # ------------------------------------------------------------------
     def debug_draw(self, surface: pygame.Surface, offset: tuple[int, int]) -> None:
         ox, oy = offset
         for rect in self.rects:
