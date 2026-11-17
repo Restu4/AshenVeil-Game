@@ -65,6 +65,7 @@ def main() -> None:
               f"camera={game.camera.offset}")
 
     combat_shots(game, out)
+    skill_shots(game, out)
     pygame.quit()
 
 
@@ -168,6 +169,68 @@ def combat_shots(game, out: Path) -> None:
     game.draw()
     pygame.image.save(game.canvas, out / "combat_death.png")
     print("  combat_death   the death veil")
+
+
+def skill_shots(game, out: Path) -> None:
+    """Deterministic VOID ESSENCE stills: burst, step, wave and eclipse."""
+    _place_pack(game)
+    player = game.player
+    skills = game.skills
+    skills.energy.regen = 0.0
+    skills.energy.current = 100.0
+    check = skills.cast_burst()
+    for _ in range(7):                       # ring + shards mid-expansion
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "skill_void_burst.png")
+    print(f"  skill_void_burst  Q radial detonation ({check})")
+
+    _place_pack(game)
+    player = game.player
+    skills = game.skills
+    skills.energy.regen = 0.0
+    skills.energy.current = 100.0
+    player.input_x, player.input_y = 1.0, 0.0
+    check = skills.cast_shadow()
+    for _ in range(8):                       # afterimage trail mid-dash
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "skill_shadow_step.png")
+    print(f"  skill_shadow_step E dash through the Void ({check})")
+
+    _place_pack(game)
+    player = game.player
+    skills = game.skills
+    skills.energy.regen = 0.0
+    skills.energy.current = 100.0
+    player.facing = "right"
+    for index, enemy in enumerate(game.combat.enemies):
+        enemy.x = enemy.home_x = player.x + 130.0 + index * 64.0
+        enemy.y = enemy.home_y = player.y
+    game.camera.snap(player.x + player.look[0], player.y + player.look[1])
+    check = skills.cast_slash()
+    for _ in range(13):                      # crescent travelling forward
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "skill_void_slash.png")
+    print(f"  skill_void_slash  R travelling crescent ({check})")
+
+    _place_pack(game)
+    player = game.player
+    skills = game.skills
+    skills.energy.regen = 0.0
+    skills.energy.current = 100.0
+    check = skills.cast_eclipse()
+    for _ in range(20):                      # sigil still gathering
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "skill_eclipse_windup.png")
+    print(f"  skill_eclipse_windup  F gathering darkness ({check})")
+    for _ in range(16):                      # detonation + screen darkening
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "skill_eclipse_blast.png")
+    print("  skill_eclipse_blast  F ultimate detonation")
 
 
 if __name__ == "__main__":

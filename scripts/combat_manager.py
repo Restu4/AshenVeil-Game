@@ -57,6 +57,8 @@ class CombatManager:
         self._last_stage = 0
         self._attack_token: FallenKnight | None = None
         self._separation_pairs = 0
+        # Set by the skill manager so sword and magic kills both reward energy.
+        self.on_kill = None
         self.restart()
 
     # ------------------------------------------------------------------
@@ -219,13 +221,94 @@ class CombatManager:
                 self.effects.spawn_flash((18, 11, 30), 0.08)
 
             if killed:
-                self.effects.spawn_death(enemy.x, enemy.y)
-                self.effects.spawn_flash((26, 12, 40), 0.14)
-                self.camera.shake(3.0, 0.12)
+                self._handle_kill(enemy)
 
         if landed_now and not self._swing_landed:
             self._swing_landed = True
             combat.register_hit(self._swing_crit)
+
+    # ------------------------------------------------------------------
+    # Skill-facing damage API.  Every magic hit funnels through here so
+    # numbers, knockback, engagement, death effects and kill rewards stay
+    # identical to a sword hit.
+    # ------------------------------------------------------------------
+    def damage_enemy(
+        self,
+        enemy,
+        damage: float,
+        source_x: float,
+        source_y: float,
+        knockback: float,
+        heavy: bool = False,
+        crit: bool = False,
+        knock_dir: tuple[float, float] | None = None,
+        hit_stop: bool = True,
+    ) -> tuple[float, bool]:
+        if enemy is None or not enemy.alive:
+            return 0.0, False
+        lost, killed = enemy.take_damage(
+            damage, source_x, source_y, knockback, heavy, knock_dir=knock_dir
+        )
+        if lost <= 0.0:
+            return 0.0, False
+
+        self.engaged = enemy
+        self.engaged_timer = 3.0
+        self.effects.spawn_impact(enemy.x, enemy.y - 20.0, heavy, crit)
+        self.effects.spawn_damage_number(enemy.x, enemy.y - 26.0, lost,
+                                         heavy, crit)
+        if hit_stop:
+            self.add_hit_stop(HIT_STOP_HEAVY if heavy else HIT_STOP_NORMAL)
+        if crit:
+            self.effects.spawn_flash((44, 32, 18), 0.09)
+        if killed:
+            self._handle_kill(enemy)
+        return lost, killed
+
+    def damage_area(
+        self,
+        x: float,
+        y: float,
+        radius: float,
+        damage: float,
+        knockback: float,
+        heavy: bool = False,
+        crit: bool = False,
+        hit_set: set[int] | None = None,
+    ) -> list[tuple[object, float, bool]]:
+        """Damage every living enemy inside ``radius`` exactly once."""
+        results: list[tuple[object, float, bool]] = []
+        for enemy in self.enemies:
+            if not enemy.alive:
+                continue
+            if hit_set is not None and enemy.id in hit_set:
+                continue
+            dx = enemy.x - x
+            dy = enemy.y - y
+            distance = math.hypot(dx, dy)
+            if distance > radius + enemy.half_w:
+                continue
+            if distance < 0.001:
+                knock_dir = (0.0, -1.0)
+            else:
+                knock_dir = (dx / distance, dy / distance)
+            if hit_set is not None:
+                hit_set.add(enemy.id)
+            lost, killed = self.damage_enemy(
+                enemy, damage, x, y, knockback, heavy=heavy, crit=crit,
+                knock_dir=knock_dir,
+            )
+            if lost > 0.0:
+                results.append((enemy, lost, killed))
+        return results
+
+    def _handle_kill(self, enemy) -> None:
+        """Shared death feedback + reward hook (sword and magic)."""
+        self.effects.spawn_death(enemy.x, enemy.y)
+        self.effects.spawn_flash((26, 12, 40), 0.14)
+        self.camera.shake(3.0, 0.12)
+        if self.on_kill is not None:
+            self.on_kill(enemy)
 
     # ------------------------------------------------------------------
     def _refresh_attack_token(self) -> None:

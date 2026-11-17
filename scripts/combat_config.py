@@ -64,9 +64,10 @@ DODGE_IFRAME = 0.16
 DODGE_SPEED = 470.0
 
 # ---------------------------------------------------------------------------
-# Dash attack (default key E, configurable through DASH_KEY_NAME).
+# Dash attack (default key C, configurable through DASH_KEY_NAME).
+# E is reserved for the Shadow Step void skill.
 # ---------------------------------------------------------------------------
-DASH_KEY_NAME = "E"
+DASH_KEY_NAME = "C"
 DASH_DURATION = 0.20
 DASH_COOLDOWN = 0.85
 DASH_SPEED = 640.0

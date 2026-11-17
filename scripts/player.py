@@ -32,9 +32,11 @@ from scripts.player_combat import (
     HURT,
     IDLE,
     RUN,
+    SHADOW_STEP,
     WALK,
     PlayerCombat,
 )
+from scripts.skill_config import SHADOW_DURATION, SHADOW_SPEED
 from scripts.animation import CharacterAnimator
 from scripts.collision import CollisionWorld
 from settings import (
@@ -97,8 +99,10 @@ class Player:
         self.footstep_pulse = False
         self.step_side = 0
         self._anim_attack_id = -1
+        self._anim_cast_id = -1
         self._was_dodging = False
         self._was_dashing = False
+        self._was_shadow = False
 
     # ------------------------------------------------------------------
     # Compatibility accessors used by the HUD and atmosphere.
@@ -175,6 +179,8 @@ class Player:
             combat.state not in ATTACK_STATES
             and combat.state != DASH_ATTACK
             and not combat.dodging
+            and not combat.shadow_step
+            and not combat.casting
             and combat.state != HURT
         )
         if combat.state in ATTACK_STATES and combat.attack_phase == "startup":
@@ -200,6 +206,16 @@ class Player:
             self._move(dt, collision)
             self._was_dodging = True
             self._was_dashing = False
+            self._was_shadow = False
+        elif combat.shadow_step:
+            progress = 1.0 - max(0.0, combat.shadow_time) / SHADOW_DURATION
+            speed = SHADOW_SPEED * (0.86 + 0.14 * progress)
+            self.vx = combat.shadow_x * speed
+            self.vy = combat.shadow_y * speed
+            self._move(dt, collision)
+            self._was_shadow = True
+            self._was_dodging = False
+            self._was_dashing = False
         elif combat.dashing:
             progress = 1.0 - max(0.0, combat.dash_time) / DASH_DURATION
             speed = DASH_SPEED * (0.86 + 0.14 * progress)
@@ -208,15 +224,18 @@ class Player:
             self._move(dt, collision)
             self._was_dashing = True
             self._was_dodging = False
+            self._was_shadow = False
         elif combat.state == HURT:
             self._apply_knockback(dt, collision)
             self._was_dodging = False
             self._was_dashing = False
+            self._was_shadow = False
         else:
-            if self._was_dodging or self._was_dashing:
+            if self._was_dodging or self._was_dashing or self._was_shadow:
                 self.vx = self.vy = 0.0
                 self._was_dodging = False
                 self._was_dashing = False
+                self._was_shadow = False
             scale = combat.movement_scale
             speed = (PLAYER_RUN_SPEED if want_run else PLAYER_WALK_SPEED) * scale
             target_vx = ix * speed
@@ -283,6 +302,14 @@ class Player:
             self.animator.play("hurt", self.facing)
         elif combat.dodging:
             self.animator.play("dodge", self.facing)
+        elif combat.shadow_step:
+            self.animator.play("dodge", self.facing)
+            self.animator.current.fps = 24.0
+        elif combat.casting:
+            if combat.cast_id != self._anim_cast_id:
+                self.animator.play("attack", self.facing, restart=True)
+                self.animator.current.fps = 9.0
+                self._anim_cast_id = combat.cast_id
         elif combat.state in ATTACK_STATES or combat.dashing:
             if combat.attack_id != self._anim_attack_id:
                 self.animator.play("attack", self.facing, restart=True)
@@ -297,7 +324,8 @@ class Player:
         self.animator.update(dt)
 
         # Footsteps are timed to movement; atmosphere turns them into dust.
-        if self.moving and self.speed > 26.0 and not combat.dead:
+        if self.moving and self.speed > 26.0 and not combat.dead \
+                and not combat.shadow_step:
             self.footstep_timer -= dt
             if self.footstep_timer <= 0.0:
                 self.step_side ^= 1
@@ -359,8 +387,10 @@ class Player:
         self.footstep_timer = 0.0
         self.footstep_pulse = False
         self._anim_attack_id = -1
+        self._anim_cast_id = -1
         self._was_dodging = False
         self._was_dashing = False
+        self._was_shadow = False
         self.vitality.reset()
         self.combat.reset()
         self.animator.play("idle", facing, restart=True)

@@ -35,6 +35,7 @@ from scripts.combat_config import (
     PLAYER_HURT_KNOCKBACK,
     PLAYER_HURT_TIME,
 )
+from scripts.skill_config import SHADOW_DURATION, SHADOW_IFRAME
 
 # Player states
 IDLE = "IDLE"
@@ -46,6 +47,7 @@ ATTACK_3 = "ATTACK_3"
 ATTACK_4 = "ATTACK_4"
 ATTACK_5 = "ATTACK_5"
 DASH_ATTACK = "DASH_ATTACK"
+SHADOW_STEP = "SHADOW_STEP"
 DODGE = "DODGE"
 HURT = "HURT"
 DEAD = "DEAD"
@@ -91,6 +93,15 @@ class PlayerCombat:
         self.dash_x = 0.0
         self.dash_y = 0.0
 
+        # Void skills: Shadow Step reuses the collision sweep, cast locks keep
+        # a wind-up from being interrupted by sword input.
+        self.shadow_time = 0.0
+        self.shadow_x = 0.0
+        self.shadow_y = 0.0
+        self.cast_time = 0.0
+        self.cast_total = 0.0
+        self.cast_id = 0
+
         self.invuln = 0.0
         self.hurt_time = 0.0
         self.hurt_flash = 0.0
@@ -104,7 +115,8 @@ class PlayerCombat:
     # Intent
     # ------------------------------------------------------------------
     def request_attack(self) -> None:
-        if self.dead or self.state in (HURT, DODGE, DASH_ATTACK):
+        if self.dead or self.cast_time > 0.0 or self.state in (
+                HURT, DODGE, DASH_ATTACK, SHADOW_STEP):
             return
         if self.state in ATTACK_STATES:
             # Rapid clicks are buffered into exactly one next link.
@@ -117,7 +129,8 @@ class PlayerCombat:
             self._start_attack(1)
 
     def request_dodge(self) -> None:
-        if self.dead or self.state in (HURT, DODGE):
+        if self.dead or self.cast_time > 0.0 or self.state in (
+                HURT, DODGE, SHADOW_STEP):
             return
         if self.dodge_cooldown > 0.0:
             return
@@ -141,7 +154,8 @@ class PlayerCombat:
 
     def request_dash(self) -> None:
         """Dash attack: a short forward burst with a wide sword strike."""
-        if self.dead or self.state in (HURT, DODGE, DASH_ATTACK):
+        if self.dead or self.cast_time > 0.0 or self.state in (
+                HURT, DODGE, DASH_ATTACK, SHADOW_STEP):
             return
         if self.dash_cooldown > 0.0:
             return
@@ -163,6 +177,47 @@ class PlayerCombat:
         self.combo_buffer = False
         self.combo_window = 0.0
         self.dodge_time = 0.0
+
+    def begin_shadow_step(self) -> bool:
+        """Trigger the SHADOW STEP void dash without spending energy here."""
+        if self.dead or self.cast_time > 0.0:
+            return False
+        if self.state in (HURT, DODGE, DASH_ATTACK, SHADOW_STEP):
+            return False
+
+        ix, iy = self.player.input_x, self.player.input_y
+        if abs(ix) < 0.001 and abs(iy) < 0.001:
+            ix, iy = FACING_VECTORS[self.player.facing]
+        length = math.hypot(ix, iy) or 1.0
+        self.shadow_x, self.shadow_y = ix / length, iy / length
+        self.player.facing = _facing_from_vector(ix, iy, self.player.facing)
+
+        self.shadow_time = SHADOW_DURATION
+        self.invuln = max(self.invuln, SHADOW_IFRAME)
+        self.state = SHADOW_STEP
+        self.attack_stage = 0
+        self.attack_time = 0.0
+        self.combo_buffer = False
+        self.combo_window = 0.0
+        self.dodge_time = 0.0
+        self.dash_time = 0.0
+        return True
+
+    def begin_cast(self, duration: float) -> bool:
+        """Lock the player into a short skill wind-up/cast recovery."""
+        if self.dead or self.state == HURT:
+            return False
+        self.cast_time = max(0.01, float(duration))
+        self.cast_total = self.cast_time
+        self.cast_id += 1
+        self.attack_stage = 0
+        self.attack_time = 0.0
+        self.combo_buffer = False
+        self.combo_window = 0.0
+        self.dodge_time = 0.0
+        self.dash_time = 0.0
+        self.state = IDLE
+        return True
 
     # ------------------------------------------------------------------
     def _start_attack(self, stage: int) -> bool:
@@ -192,6 +247,7 @@ class PlayerCombat:
         dt = max(0.0, dt)
         self.dodge_cooldown = max(0.0, self.dodge_cooldown - dt)
         self.dash_cooldown = max(0.0, self.dash_cooldown - dt)
+        self.cast_time = max(0.0, self.cast_time - dt)
         self.invuln = max(0.0, self.invuln - dt)
         self.hurt_flash = max(0.0, self.hurt_flash - dt)
         self.blocked_flash = max(0.0, self.blocked_flash - dt)
@@ -216,6 +272,13 @@ class PlayerCombat:
             self.dodge_time -= dt
             if self.dodge_time <= 0.0:
                 self.dodge_time = 0.0
+                self.state = IDLE
+            return
+
+        if self.state == SHADOW_STEP:
+            self.shadow_time -= dt
+            if self.shadow_time <= 0.0:
+                self.shadow_time = 0.0
                 self.state = IDLE
             return
 
@@ -263,6 +326,8 @@ class PlayerCombat:
         self.combo_decay = 0.0
         self.dodge_time = 0.0
         self.dash_time = 0.0
+        self.shadow_time = 0.0
+        self.cast_time = 0.0
 
         dx = self.player.x - source_x
         dy = self.player.y - source_y
@@ -310,6 +375,11 @@ class PlayerCombat:
         self.dash_time = 0.0
         self.dash_cooldown = 0.0
         self.dash_x = self.dash_y = 0.0
+        self.shadow_time = 0.0
+        self.shadow_x = self.shadow_y = 0.0
+        self.cast_time = 0.0
+        self.cast_total = 0.0
+        self.cast_id = 0
         self.invuln = 0.0
         self.hurt_time = 0.0
         self.hurt_flash = 0.0
@@ -382,6 +452,18 @@ class PlayerCombat:
         return self.state == DASH_ATTACK and self.dash_time > 0.0
 
     @property
+    def shadow_step(self) -> bool:
+        return self.state == SHADOW_STEP and self.shadow_time > 0.0
+
+    @property
+    def casting(self) -> bool:
+        return self.cast_time > 0.0
+
+    @property
+    def can_cast_skill(self) -> bool:
+        return not self.dead and self.state != HURT and not self.casting
+
+    @property
     def invulnerable(self) -> bool:
         return self.invuln > 0.0 or self.dead
 
@@ -391,8 +473,10 @@ class PlayerCombat:
 
     @property
     def movement_scale(self) -> float:
-        if self.dead or self.state in (HURT, DODGE):
+        if self.dead or self.state in (HURT, DODGE, SHADOW_STEP):
             return 0.0
+        if self.casting:
+            return 0.25
         if self.state == DASH_ATTACK:
             return 1.0
         if self.state in ATTACK_STATES:

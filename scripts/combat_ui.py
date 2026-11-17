@@ -60,7 +60,7 @@ class CombatUI:
                   spacing=3, shadow=(0, 0, 0), shadow_offset=(2, 3), center=True)
         draw_text(surf, "THE VEIL CLAIMS ANOTHER", w // 2, 128, 1,
                   (146, 128, 160), spacing=4, center=True)
-        draw_text(surf, "PRESS R OR CLICK TO RISE AGAIN", w // 2, 166, 1,
+        draw_text(surf, "PRESS ENTER OR CLICK TO RISE AGAIN", w // 2, 166, 1,
                   (186, 172, 198), spacing=2, center=True)
         return surf
 

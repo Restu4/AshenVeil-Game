@@ -4,8 +4,9 @@ A first-playable, top-down dark fantasy **hack & slash** village built with
 **Python + Pygame-CE**, packaged for the browser with **Pygbag**. This slice is
 about atmosphere, exploration and fast multi-enemy swordplay: Fallen Knights
 roam the dying village and the player chains a five-hit combo, dodge-rolls
-through swings and dash-attacks across the plaza. There is no quest, inventory
-or boss system yet.
+through swings and dash-attacks across the plaza. On top of the swordplay sits
+**VOID ESSENCE**, a dark-magic system with a regenerating energy pool and four
+skills. There is no quest, inventory or boss system yet.
 
 The playable character uses the original ASHEN VEIL spritesheet (hooded figure,
 black face, single white eye, large back sword, cape and sandals). The village
@@ -24,11 +25,27 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
   heavy spin → finisher for 20 / 22 / 25 / 30 / 45 damage. Inputs are buffered
   from the first frames of a swing, each link has its own timing, reach,
   knockback and slash arc, and the chain auto-resets after 2.2 s idle.
-- **Dash attack** — `E` or right mouse bursts forward with a wide, bright
+- **Dash attack** — `C` or right mouse bursts forward with a wide, bright
   sword strike (26 damage, 0.85 s cooldown). Movement uses the normal collision
   solver, so the dash slides to a stop at walls instead of teleporting.
 - **Dodge roll** — `Space` rolls in the input direction (or facing), grants
   i-frames, moves at 470 px/s and has a 0.30 s cooldown. No stamina cost.
+- **VOID ESSENCE dark magic** — a separate 100-point energy pool that starts
+  full, regenerates 8/s and gains +8 on every enemy kill (sword or magic).
+  Four skills share the existing combat pipeline:
+  - `Q` **VOID BURST** — instant purple detonation, 35 damage in a 110 px
+    radius, radial knockback, 20 energy, 3 s cooldown.
+  - `E` **SHADOW STEP** — 0.25 s Void dash with purple afterimages, i-frames
+    and normal collision, 15 energy, 2 s cooldown.
+  - `R` **VOID SLASH** — a travelling crescent that hits each enemy once,
+    45 damage, 320 px range, 25 energy, 5 s cooldown.
+  - `F` **ECLIPSE** — a 0.55 s wind-up that darkens the screen, then a
+    220 px expanding detonation for 100 damage with heavy knockback and camera
+    shake, 60 energy, 18 s cooldown.
+- **Void Essence HUD** — a charcoal/purple panel under the vitality bar with a
+  segmented energy bar, four icon slots, key labels, costs, shrinking cooldown
+  overlays, a disabled state when unaffordable and a charging ring for Eclipse.
+  The health bar and all existing HUD elements are unchanged.
 - **Multi-enemy combat** — one swing damages every knight inside its hitbox
   exactly once, with independent reactions. Heavy links use a radial hitbox.
   Knockback follows the sword's travel direction, and a light separation pass
@@ -56,8 +73,9 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
   dust, a cold player aura and a vignette.
 - **Custom pixel HUD** — vitality bar, a DASH cooldown gauge, level badge,
   “ASHEN VEIL” title treatment, controls hint, an intro card, a combo counter
-  with five chain pips, a critical-hit flash, floating enemy health bars and
-  the engaged-knight bar. Cached surfaces; a “YOU DIED” veil with restart.
+  with five chain pips, a critical-hit flash, floating enemy health bars, the
+  engaged-knight bar, and the Void Essence panel (energy bar + four skill
+  slots). Cached surfaces; a “YOU DIED” veil with restart.
 - **Browser build** via Pygbag with an async-compatible game loop.
 
 ## Controls
@@ -66,10 +84,14 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
 | --- | --- |
 | `WASD` / arrow keys | Move (8 directions) |
 | `Left mouse button` | Attack — press again during a swing to chain the five-hit combo |
-| `Right mouse button` / `E` | Dash attack (forward burst + wide strike) |
+| `Right mouse button` / `C` | Dash attack (forward burst + wide strike) |
 | `Space` | Dodge roll (invulnerability frames) |
+| `Q` | VOID BURST — radial dark explosion |
+| `E` | SHADOW STEP — Void dash with i-frames |
+| `R` | VOID SLASH — travelling purple crescent |
+| `F` | ECLIPSE — wind-up ultimate |
 | `Shift` | Run (unrestricted) |
-| `R` / click | Rise again after death |
+| `Enter` / `Space` / click | Rise again after death |
 | `H` | Toggle control hints |
 | `F1` / `F3` | Toggle debug overlay |
 | `F11` | Toggle fullscreen (desktop) |
@@ -77,8 +99,10 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
 
 The help bar hides itself after a short while; press `H` to bring it back. The
 browser builds capture the mouse on the canvas, so click once to focus before
-using keyboard controls. The dash key is configurable via
-`DASH_KEY_NAME` in `scripts/combat_config.py`.
+using keyboard controls. After death only `Enter`, `Space` or a click restarts
+the run, so `R` is free for VOID SLASH. The dash key is configurable via
+`DASH_KEY_NAME` in `scripts/combat_config.py`; skill keys, costs and cooldowns
+live in `scripts/skill_config.py`.
 
 ## Combat tuning
 
@@ -102,6 +126,38 @@ All values live in `scripts/combat_config.py`.
 - Fallen Knight: 100 HP, 12 damage, 1.35 s attack cooldown, 0.40 s wind-up,
   0.80 s total swing. One knight holds the attack token at a time.
 - Player: 100 HP, 0.75 s post-hit invulnerability.
+
+## Void Essence tuning
+
+All values live in `scripts/skill_config.py`.
+
+| Resource | Value |
+| --- | --- |
+| Maximum energy | 100 |
+| Starting energy | 100 |
+| Regeneration | 8 / second (delta time) |
+| Kill reward | +8 (sword or magic kills) |
+
+| Skill | Key | Cost | Cooldown | Damage | Radius / range | Knockback |
+| --- | --- | ---: | ---: | ---: | --- | ---: |
+| VOID BURST | `Q` | 20 | 3.0 s | 35 | 110 px radius | 165 |
+| SHADOW STEP | `E` | 15 | 2.0 s | — | 0.25 s dash / 690 px/s | — |
+| VOID SLASH | `R` | 25 | 5.0 s | 45 | 320 px, 560 px/s wave | 215 |
+| ECLIPSE | `F` | 60 | 18.0 s | 100 | 220 px radius, 0.55 s wind-up | 360 |
+
+- Energy regeneration, spending and cooldowns are all delta-time based and
+  clamped to `0..100`; a skill can never be cast below its cost.
+- Magic damage uses the same `CombatManager.damage_enemy` / `damage_area`
+  pipeline as sword hits, so damage numbers, hit stop, knockback, enemy health
+  bars, death dissolves and kill rewards are identical.
+- Each cast carries its own hit set: an enemy is damaged at most once per
+  burst, wave or Eclipse, even while overlapping for several frames.
+- Magic cannot damage the player. Shadow Step grants 0.22 s of i-frames, moves
+  through the normal collision solver and stops at walls.
+- Eclipse is a committed cast: it cannot begin again while a previous wind-up
+  is still gathering, and it applies its cooldown immediately.
+- Presentation limits live at the bottom of the config: 240 skill particles,
+  10 rings, 24 afterimages and 4 travelling waves.
 
 ## Requirements
 
@@ -183,8 +239,14 @@ scripts/
   asset_loader.py           Manifest/image/ground/enemy/shadow loading and caching
   animation.py              Sheet animation and action/facing animator
   player.py                 Movement, footsteps, combat integration, 2x sprite
-  player_combat.py          Five-hit combo/dash/dodge/hurt/death state machine
+  player_combat.py          Five-hit combo/dash/dodge/shadow-step/cast state machine
   combat_config.py          All combat tuning (damage, timings, reach, knockback)
+  skill_config.py           All Void Essence tuning (energy, costs, damage, cooldowns)
+  void_energy.py            Clamped delta-time energy pool with kill rewards
+  skill_manager.py          Skill orchestration, energy, waves, Eclipse, kill hook
+  skills/                   Per-skill casts (base, burst, shadow step, slash, eclipse)
+  skill_effects.py          Capped purple particles, rings, afterimages, dark overlay
+  skill_hud.py              Void Essence energy bar and four skill slots
   health.py                 Clamped health pool shared by player and enemies
   hitbox.py                 Arc and radial attack volumes with knock direction
   enemy.py                  Fallen Knight entity: animation, health, damage, drawing
@@ -203,9 +265,9 @@ scripts/
 tools/                      Development only (not shipped to the web build)
   slice_assets.py           Re-cuts the source atlas into assets/sliced/
   bake_ground.py            Rebakes assets/generated/ground.png
-  preview.py                Headless landmark + combat screenshots → screenshots/
-  bench.py                  Headless draw benchmark (exploration + combat frames)
-  test_combat.py            Headless functional checks (110 assertions)
+  preview.py                Headless landmark + combat + skill screenshots
+  bench.py                  Headless draw benchmark (exploration/combat/skills)
+  test_combat.py            Headless functional checks (191 assertions)
   generate_fallen_knight.py Regenerates the Fallen Knight sheet
 
 screenshots/                Landmark preview renders from tools/preview.py
@@ -247,15 +309,18 @@ roads, plaza and static light pools stay aligned with props and collision.
   preserved.
 - Enemy animation sheets are shared between all Fallen Knights; each knight
   only stores its own animator indices and timers.
-- `tools/bench.py` on the development machine reports roughly 5–6 ms for a full
-  1280×720 draw, both exploring and in a busy combat frame with five knights,
-  a chained combo, sparks, damage numbers and combo/enemy bars (world ≈ 2 ms,
-  atmosphere ≈ 2–3 ms, effects ≈ 0.75 ms, HUD ≈ 0.7 ms) with the dummy video
-  driver. Browser timing will differ.
+- Skill visuals reuse one cached full-screen dark surface, cached dot sprites
+  and plain capped lists; the wave and Eclipse sigil are cheap arc/circle
+  draws rather than new per-frame surfaces.
+- `tools/bench.py` on the development machine reports roughly 6–8 ms for a full
+  1280×720 draw: exploration ≈ 8.3 ms, five-knight combat ≈ 6.8 ms and a frame
+  with all four skills firing ≈ 6.0 ms (world ≈ 2 ms, atmosphere ≈ 2–4 ms,
+  skill effects ≈ 0.3 ms, combat effects ≈ 0.3–0.8 ms, HUD ≈ 1.0–1.3 ms) with
+  the dummy video driver. Browser timing will differ.
 
 ## Verification status
 
-`python tools/test_combat.py` runs 110 headless assertions covering:
+`python tools/test_combat.py` runs **191** headless assertions covering:
 
 - walking, running without stamina, the IDLE/WALK/RUN state surface and
   legacy collision/camera clamping;
@@ -277,15 +342,32 @@ roads, plaza and static light pools stay aligned with props and collision.
   the separation pass;
 - wall obstruction for both the sword (no cutting through stone) and knight
   movement (never inside a house footprint);
-- synthetic mouse/keyboard events (LMB, RMB, E, Space), six awaited frames of
-  the async loop and full-resolution frames with HUD, combo readout, enemy
-  bars, debug overlays and the death veil.
+- **Void Essence:** starting/full energy, separate-from-HP resource, delta-time
+  8/s regeneration, clamping, spending and +8 kill rewards from both sword and
+  magic kills;
+- **all four skills:** burst cost/damage/radius/radial knockback/one-hit-per-
+  cast, shadow dash distance/i-frames/wall collision/cooldown, wave travel,
+  multi-enemy single hit, range expiry and facing, and Eclipse wind-up,
+  no-damage-before-detonation, 100 damage, radius, knockback, darkening,
+  camera shake, 18 s cooldown and no double-cast while active;
+- insufficient-energy refusal without spending, magic never damaging the
+  player, skill particles staying under the configured cap, and the Void
+  Essence HUD rendering purple when full, draining when empty, exposing four
+  keyed slots with costs, and disabling skills at zero energy;
+- synthetic mouse/keyboard events (LMB, RMB, C, Q, E, R, F, Space, Enter),
+  R no longer restarting after death, click restart, six awaited frames of the
+  async loop and full-resolution frames with HUD, combo readout, enemy bars,
+  debug overlays, skill HUD and the death veil.
 
 Also verified:
 
-- Landmark and combat views render and are saved in `screenshots/`
+- Landmark, combat and skill views render and are saved in `screenshots/`
   (`combat_impact.png`, `combat_finisher.png`, `combat_dash.png`,
-  `combat_kill.png`, `combat_death.png`).
+  `combat_kill.png`, `combat_death.png`, `skill_void_burst.png`,
+  `skill_shadow_step.png`, `skill_void_slash.png`,
+  `skill_eclipse_windup.png`, `skill_eclipse_blast.png`).
+- `python tools/bench.py` completes all three scenarios and reports the
+  draw-phase timings above; the skill-effect lists stay within their caps.
 - `python -m pygbag --build --title "ASHEN VEIL" .` produces a browser build in
   `build/web/`; serving `build/web/` returns the page and APK with HTTP 200.
 - A live interactive browser session (real input, audio, canvas display) still
@@ -304,6 +386,10 @@ Also verified:
   `death_down`; `death` reads as the knight collapsing into ash.
 - No new frames were invented for the player. The knight sheet is generated
   from code in `tools/generate_fallen_knight.py`, not reused player art.
+- The project currently has **no audio system or sound assets**. The Void skills
+  therefore have distinct visuals, timings, camera shake and hit stop, but no
+  sound effects were added; adding audio would require a new mixer module and
+  assets, which is outside this phase.
 
 ## Credits
 

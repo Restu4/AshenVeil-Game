@@ -33,7 +33,9 @@ from scripts.player_combat import (  # noqa: E402
     DASH_ATTACK,
     DODGE,
     IDLE,
+    SHADOW_STEP,
 )
+from scripts.skill_config import SKILL_MAX_PARTICLES  # noqa: E402
 from scripts.village_layout import ENEMY_SPAWNS, SPAWN  # noqa: E402
 
 DT = 1.0 / 60.0
@@ -72,6 +74,7 @@ def advance(game: Game, seconds: float, keys=EMPTY, watch=None) -> None:
         sim_dt = game.combat.consume_hit_stop(DT)
         player.update(sim_dt, keys, game.world.collision)
         game.combat.update(sim_dt)
+        game.skills.update(sim_dt)
         game.effects.update(sim_dt)
         game.camera.update(sim_dt, player.x, player.y, *player.look)
         if watch is not None:
@@ -662,6 +665,292 @@ def main() -> None:
           f"knight cannot walk through the house (y={knight.y:.0f})")
 
     # ------------------------------------------------------------------
+    section("Void Essence: energy pool, regeneration and kill rewards")
+    game.restart()
+    park_all(game)
+    freeze_enemies(game)
+    skills = game.skills
+    check(skills.energy.maximum == 100.0 and skills.energy.current == 100.0,
+          "void energy starts full at 100/100")
+    check(skills.energy is not game.player.vitality,
+          "void energy is a separate resource from HP")
+    skills.energy.regen = 8.0
+    skills.energy.current = 50.0
+    advance(game, 1.0)
+    check(math.isclose(skills.energy.current, 58.0, abs_tol=0.2),
+          f"energy regenerates 8/s with delta time ({skills.energy.current:.1f})")
+    skills.energy.current = 97.0
+    advance(game, 1.0)
+    check(skills.energy.current == 100.0,
+          "energy regeneration clamps at the maximum")
+    check(not skills.energy.spend(150.0) and skills.energy.current == 100.0,
+          "energy can never be spent below zero")
+    check(skills.energy.spend(20.0) and skills.energy.current == 80.0,
+          "energy spend subtracts exactly the cost")
+    skills.energy.gain(999.0)
+    check(skills.energy.current == 100.0, "energy gain clamps at the maximum")
+
+    skills.energy.regen = 0.0
+    skills.energy.current = 50.0
+    controller = game.combat.enemies[0]
+    controller.health.current = 10.0
+    lost, killed = game.combat.damage_enemy(
+        controller, 999.0, controller.x - 30.0, controller.y, 0.0)
+    check(lost > 0.0 and killed, "combat manager can kill through the skill API")
+    check(math.isclose(skills.energy.current, 58.0),
+          f"an enemy kill rewards 8 void energy ({skills.energy.current:.1f})")
+
+    # Sword kills feed the same reward hook.
+    knight = duel(game, offset_x=50.0, crit=0.0)
+    game.skills.energy.regen = 0.0
+    game.skills.energy.current = 50.0
+    game.player.request_attack()
+    knight.health.current = 15.0
+    advance(game, 0.3)
+    check(knight.health.dead and math.isclose(game.skills.energy.current, 58.0),
+          f"sword kills also reward void energy ({game.skills.energy.current:.1f})")
+
+    # ------------------------------------------------------------------
+    section("VOID BURST (Q): radial damage, cost, cooldown and one hit per cast")
+    game.restart()
+    game.combat.crit_chance = 0.0
+    skills = game.skills
+    skills.energy.regen = 0.0
+    player = game.player
+    player.x, player.y = OPEN_GROUND
+    player.facing = "right"
+    park_all(game)
+    trio = game.combat.enemies[:3]
+    spots = ((60.0, 0.0), (-52.0, 4.0), (0.0, -56.0))
+    for enemy, (dx, dy) in zip(trio, spots):
+        enemy.x = enemy.home_x = player.x + dx
+        enemy.y = enemy.home_y = player.y + dy
+        enemy.health.reset()
+        enemy.attack_cooldown = 5.0
+    outside = game.combat.enemies[3]
+    outside.x = outside.home_x = player.x + 240.0
+    outside.y = outside.home_y = player.y
+    outside.health.reset()
+    freeze_enemies(game)
+    game.camera.snap(player.x, player.y)
+    hp_before = player.health
+    skills.energy.current = 100.0
+    check(skills.cast_burst(), "Q casts VOID BURST")
+    check(math.isclose(skills.energy.current, 80.0),
+          f"void burst costs 20 energy ({skills.energy.current:.1f})")
+    check(player.combat.casting, "the burst plays a short cast lock")
+    check(all(math.isclose(e.health.current, 65.0) for e in trio),
+          f"burst deals 35 to every nearby knight "
+          f"({[e.health.current for e in trio]})")
+    check(outside.health.current == 100.0,
+          "burst radius stops at 110 px")
+    check(trio[0].knockback_x > 0.0 and trio[1].knockback_x < 0.0,
+          "burst knockback radiates outward from the player")
+    check(trio[2].knockback_y < 0.0,
+          "vertical targets are pushed away on the y axis")
+    check(len(game.effects.numbers) >= 3,
+          "burst spawns damage numbers through the existing effect system")
+    check(skills.burst.timer > 2.9,
+          f"burst starts its 3 s cooldown ({skills.burst.timer:.2f})")
+    check(not skills.cast_burst(), "burst is refused during its cooldown")
+    advance(game, 0.3)
+    check(all(math.isclose(e.health.current, 65.0) for e in trio),
+          "one burst cast never damages the same enemy twice")
+    check(player.health == hp_before, "void magic never damages the player")
+    skills.energy.current = 19.0
+    skills.burst.timer = 0.0
+    check(not skills.cast_burst() and math.isclose(skills.energy.current, 19.0),
+          "insufficient energy blocks the burst without spending")
+    check(all(math.isclose(e.health.current, 65.0) for e in trio),
+          "a failed cast deals no damage")
+
+    # ------------------------------------------------------------------
+    section("SHADOW STEP (E): dash, i-frames, collision and cooldown")
+    game.restart()
+    skills = game.skills
+    skills.energy.regen = 0.0
+    player = game.player
+    park_all(game)
+    freeze_enemies(game)
+    player.x, player.y = OPEN_GROUND
+    player.facing = "right"
+    player.input_x, player.input_y = 1.0, 0.0
+    skills.energy.current = 100.0
+    check(skills.cast_shadow(), "E casts SHADOW STEP")
+    check(math.isclose(skills.energy.current, 85.0),
+          f"shadow step costs 15 energy ({skills.energy.current:.1f})")
+    check(player.combat.state == SHADOW_STEP,
+          f"shadow step enters its own state ({player.combat.state})")
+    check(player.combat.invulnerable, "shadow step grants brief i-frames")
+    check(not player.take_damage(15.0, 1500.0, 1420.0),
+          "damage is ignored during shadow step")
+    check(len(skills.skill_effects.afterimages) >= 1,
+          "shadow step spawned a purple afterimage")
+    before = player.x
+    advance(game, 0.30)
+    check(player.x - before > 100.0,
+          f"shadow step travels quickly ({player.x - before:.1f} px)")
+    check(player.combat.state != SHADOW_STEP,
+          "shadow step releases control after its duration")
+    check(skills.shadow.timer > 1.6,
+          f"shadow step starts its 2 s cooldown ({skills.shadow.timer:.2f})")
+    check(not skills.cast_shadow(), "shadow step is refused during cooldown")
+
+    game.restart()
+    skills = game.skills
+    skills.energy.regen = 0.0
+    player = game.player
+    park_all(game)
+    freeze_enemies(game)
+    player.x, player.y = 1600.0, 1368.0
+    player.facing = "up"
+    player.input_x, player.input_y = 0.0, -1.0
+    skills.energy.current = 100.0
+    start_y = player.y
+    check(skills.cast_shadow(), "shadow step can be cast near a wall")
+    advance(game, 0.40)
+    rect = pygame.Rect(int(player.x - 12), int(player.y - 9), 24, 18)
+    check(player.y > 1335.0,
+          f"shadow step cannot pass through the house wall (y={player.y:.1f})")
+    check(game.world.collision.rect_free(rect),
+          "shadow step never leaves the player inside a solid")
+    check(player.y < start_y, "shadow step still made progress before the wall")
+
+    # ------------------------------------------------------------------
+    section("VOID SLASH (R): travelling wave, multi-hit, range and cooldown")
+    game.restart()
+    game.combat.crit_chance = 0.0
+    skills = game.skills
+    skills.energy.regen = 0.0
+    player = game.player
+    player.x, player.y = OPEN_GROUND
+    player.facing = "right"
+    park_all(game)
+    near, far, behind = game.combat.enemies[:3]
+    near.x = near.home_x = player.x + 120.0
+    near.y = near.home_y = player.y
+    far.x = far.home_x = player.x + 250.0
+    far.y = far.home_y = player.y
+    behind.x = behind.home_x = player.x - 120.0
+    behind.y = behind.home_y = player.y
+    for enemy in (near, far, behind):
+        enemy.health.reset()
+        enemy.attack_cooldown = 5.0
+    freeze_enemies(game)
+    game.camera.snap(player.x, player.y)
+    hp_before = player.health
+    skills.energy.current = 100.0
+    check(skills.cast_slash(), "R casts VOID SLASH")
+    check(math.isclose(skills.energy.current, 75.0),
+          f"void slash costs 25 energy ({skills.energy.current:.1f})")
+    check(len(skills.slash.waves) == 1, "one travelling wave was spawned")
+    check(player.combat.casting, "void slash commits the player to a swing")
+    advance(game, 0.55)
+    check(math.isclose(near.health.current, 55.0),
+          f"the wave hits the first knight for 45 ({near.health.current})")
+    check(math.isclose(far.health.current, 55.0),
+          f"the wave keeps travelling into the next knight ({far.health.current})")
+    check(behind.health.current == 100.0,
+          "the wave never damages enemies behind the player")
+    check(near.knockback_x > 0.0,
+          "the wave knocks enemies along its travel direction")
+    advance(game, 0.6)
+    check(not skills.slash.waves,
+          "the wave disappears after its 320 px range")
+    check(math.isclose(near.health.current, 55.0)
+          and math.isclose(far.health.current, 55.0),
+          "each enemy is hit only once per wave")
+    check(skills.slash.timer > 0.0 and not skills.cast_slash(),
+          "void slash is refused during its 5 s cooldown")
+    check(player.health == hp_before, "void slash never hurts the player")
+
+    # ------------------------------------------------------------------
+    section("ECLIPSE (F): wind-up, ultimate damage, knockback and lockout")
+    game.restart()
+    game.combat.crit_chance = 0.0
+    skills = game.skills
+    skills.energy.regen = 0.0
+    player = game.player
+    player.x, player.y = OPEN_GROUND
+    player.facing = "right"
+    park_all(game)
+    near, far = game.combat.enemies[:2]
+    near.x = near.home_x = player.x + 140.0
+    near.y = near.home_y = player.y
+    far.x = far.home_x = player.x + 400.0
+    far.y = far.home_y = player.y
+    near.health.reset()
+    far.health.reset()
+    freeze_enemies(game)
+    game.camera.snap(player.x, player.y)
+    hp_before = player.health
+    skills.energy.current = 100.0
+    check(skills.cast_eclipse(), "F begins the ECLIPSE ultimate")
+    check(math.isclose(skills.energy.current, 40.0),
+          f"eclipse costs 60 energy ({skills.energy.current:.1f})")
+    check(skills.eclipse.charging and player.combat.casting,
+          "eclipse locks the player into a visible wind-up")
+    check(math.isclose(skills.eclipse.timer, 18.0),
+          f"eclipse applies its 18 s cooldown on cast ({skills.eclipse.timer:.1f})")
+    cooldown_at_cast = skills.eclipse.timer
+    check(near.health.current == 100.0,
+          "eclipse deals no damage before the wind-up finishes")
+    skills.energy.current = 100.0
+    skills.eclipse.timer = 0.0
+    check(not skills.cast_eclipse(),
+          "eclipse cannot trigger again while its animation is active")
+    skills.eclipse.timer = cooldown_at_cast
+    skills.energy.current = 0.0
+    advance(game, 0.66)
+    check(not skills.eclipse.charging, "eclipse detonates after the wind-up")
+    check(near.health.current == 0.0,
+          f"eclipse deals 100 damage in its radius ({near.health.current})")
+    check(far.health.current == 100.0,
+          "eclipse radius stops at 220 px")
+    check(math.isclose(skills.energy.current, 8.0),
+          f"the ultimate kill rewards 8 energy ({skills.energy.current:.1f})")
+    check(skills.skill_effects.dark_timer > 0.0,
+          "eclipse darkens the screen after detonation")
+    check(game.camera.shake_time > 0.0, "eclipse shakes the camera")
+    check(skills.eclipse.timer > 17.0,
+          f"eclipse starts its 18 s cooldown ({skills.eclipse.timer:.1f})")
+    check(not skills.cast_eclipse(), "eclipse is refused after detonation")
+    check(player.health == hp_before, "eclipse never damages the player")
+    game.draw()
+    check(len(skills.skill_effects.particles) <= SKILL_MAX_PARTICLES,
+          f"skill particles stay capped ({len(skills.skill_effects.particles)})")
+
+    # ------------------------------------------------------------------
+    section("Void Essence HUD: energy bar, four slots, cooldown and disabled")
+    game.restart()
+    skills = game.skills
+    player = game.player
+    check(game.hud.skill_hud is not None, "the HUD owns a Void Essence panel")
+    check([skill.key for skill in skills.skills] == ["Q", "E", "R", "F"],
+          f"four skill slots expose their keys "
+          f"({[skill.key for skill in skills.skills]})")
+    check([skill.cost for skill in skills.skills] == [20.0, 15.0, 25.0, 60.0],
+          "skill slots expose their energy costs")
+    game.hud.draw(game.canvas, player, game.combat, game.camera, skills)
+    px = game.canvas.get_at((64, 154))[:3]
+    check(px[2] > px[0] and px[2] > 60,
+          f"the void energy bar renders purple when full ({px})")
+    skills.energy.current = 0.0
+    skills.burst.timer = 3.0
+    skills.eclipse.pending = {"x": player.x, "y": player.y,
+                              "timer": 0.2, "hit": set()}
+    game.hud.draw(game.canvas, player, game.combat, game.camera, skills)
+    px = game.canvas.get_at((64, 154))[:3]
+    check(px[2] < 60, f"an empty energy bar drains the purple fill ({px})")
+    check(game.canvas.get_size() == (1280, 720),
+          "the skill HUD renders inside the existing resolution")
+    check(skills.energy.current == 0.0 and not skills.energy.can_afford(15.0),
+          "an empty pool disables every skill")
+    game.draw()
+    check(game.canvas.get_at((0, 0))[:3] != (0, 0, 0),
+          "full frame with skill HUD and disabled slots renders")
+
+    # ------------------------------------------------------------------
     section("Rendering: HUD, combo readout, enemy bars and debug overlays")
     game.restart()
     game.combat.crit_chance = 0.0
@@ -676,13 +965,16 @@ def main() -> None:
     game.debug = True
     game.draw()
     game.debug = False
-    game.hud.draw(game.canvas, game.player, game.combat, game.camera)
+    game.hud.draw(game.canvas, game.player, game.combat, game.camera,
+                  game.skills)
     check(game.canvas.get_size() == (1280, 720),
           "full combat frame renders at the internal resolution")
     check(game.canvas.get_at((0, 0))[:3] != (0, 0, 0),
           "canvas contains a rendered frame")
     check(game.hud.combat_ui._combo_panel is not None,
           "combo panel exists in the cached combat UI")
+    check(game.hud.skill_hud._panel is not None,
+          "void essence panel is cached, not rebuilt per frame")
 
     # ------------------------------------------------------------------
     section("Input events and the async browser loop")
@@ -697,9 +989,36 @@ def main() -> None:
     game.restart()
     game.handle_event(pygame.event.Event(
         pygame.KEYDOWN, {"key": game.dash_key, "mod": 0,
-                         "unicode": "e", "scancode": 0}))
+                         "unicode": "c", "scancode": 0}))
     check(game.player.combat.state == DASH_ATTACK,
-          "E key event starts the dash attack")
+          "C key event starts the dash attack")
+    game.restart()
+    game.handle_event(pygame.event.Event(
+        pygame.KEYDOWN, {"key": pygame.K_q, "mod": 0,
+                         "unicode": "q", "scancode": 0}))
+    check(game.skills.energy.current == 80.0,
+          "Q key event casts Void Burst and spends 20 energy")
+    game.restart()
+    game.handle_event(pygame.event.Event(
+        pygame.KEYDOWN, {"key": pygame.K_e, "mod": 0,
+                         "unicode": "e", "scancode": 0}))
+    check(game.player.combat.state == SHADOW_STEP
+          and game.skills.energy.current == 85.0,
+          "E key event casts Shadow Step and spends 15 energy")
+    game.restart()
+    game.handle_event(pygame.event.Event(
+        pygame.KEYDOWN, {"key": pygame.K_r, "mod": 0,
+                         "unicode": "r", "scancode": 0}))
+    check(len(game.skills.slash.waves) == 1
+          and game.skills.energy.current == 75.0,
+          "R key event casts Void Slash and spends 25 energy")
+    game.restart()
+    game.handle_event(pygame.event.Event(
+        pygame.KEYDOWN, {"key": pygame.K_f, "mod": 0,
+                         "unicode": "f", "scancode": 0}))
+    check(game.skills.eclipse.charging
+          and game.skills.energy.current == 40.0,
+          "F key event begins Eclipse and spends 60 energy")
     game.restart()
     game.handle_event(pygame.event.Event(
         pygame.MOUSEBUTTONDOWN, {"button": 3, "pos": (640, 360)}))
@@ -710,6 +1029,19 @@ def main() -> None:
         pygame.KEYDOWN, {"key": pygame.K_SPACE, "mod": 0,
                          "unicode": " ", "scancode": 0}))
     check(game.player.combat.state == DODGE, "SPACE key event starts a dodge")
+    game.player.health = 10.0
+    game.player.combat.invuln = 0.0
+    game.player.take_damage(15.0, 1700.0, 1300.0)
+    game.handle_event(pygame.event.Event(
+        pygame.KEYDOWN, {"key": pygame.K_r, "mod": 0,
+                         "unicode": "r", "scancode": 0}))
+    check(game.player.combat.dead,
+          "R is now Void Slash and no longer restarts a dead run")
+    game.handle_event(pygame.event.Event(
+        pygame.KEYDOWN, {"key": pygame.K_RETURN, "mod": 0,
+                         "unicode": "\r", "scancode": 0}))
+    check(not game.player.combat.dead and game.player.health == 100.0,
+          "Enter restarts the run after death")
     game.player.health = 10.0
     game.player.combat.invuln = 0.0
     game.player.take_damage(15.0, 1700.0, 1300.0)

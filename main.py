@@ -16,6 +16,7 @@ from scripts.effects import Effects
 from scripts.hud import HUD
 from scripts.pixel_font import draw_text
 from scripts.player import Player
+from scripts.skill_manager import SkillManager
 from scripts.village_layout import SPAWN, SPAWN_FACING
 from scripts.world import World
 
@@ -43,6 +44,7 @@ class Game:
         self.effects = Effects()
         self.combat = CombatManager(self.assets, self.world, self.player,
                                     self.camera, self.effects)
+        self.skills = SkillManager(self.player, self.combat, self.camera)
         self.hud = HUD()
         self.clock = pygame.time.Clock()
 
@@ -77,14 +79,22 @@ class Game:
             if self.player.combat.dead:
                 if event.key == pygame.K_ESCAPE and not IS_WEB:
                     self.running = False
-                elif event.key in (pygame.K_r, pygame.K_RETURN,
-                                   pygame.K_KP_ENTER, pygame.K_SPACE):
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER,
+                                   pygame.K_SPACE):
                     self.restart()
                 return
             if event.key == pygame.K_ESCAPE and not IS_WEB:
                 self.running = False
             elif event.key == pygame.K_SPACE:
                 self.player.request_dodge()
+            elif event.key == pygame.K_q:
+                self.skills.try_cast("Q")
+            elif event.key == pygame.K_e:
+                self.skills.try_cast("E")
+            elif event.key == pygame.K_r:
+                self.skills.try_cast("R")
+            elif event.key == pygame.K_f:
+                self.skills.try_cast("F")
             elif event.key == self.dash_key:
                 self.player.request_dash()
             elif event.key in (pygame.K_F1, pygame.K_F3):
@@ -98,6 +108,7 @@ class Game:
     def restart(self) -> None:
         self.player.reset(SPAWN[0], SPAWN[1], SPAWN_FACING)
         self.combat.restart()
+        self.skills.reset()
         self.effects.clear()
         self.camera.snap(self.player.x + self.player.look[0],
                          self.player.y + self.player.look[1])
@@ -109,6 +120,7 @@ class Game:
         keys = pygame.key.get_pressed()
         self.player.update(sim_dt, keys, self.world.collision)
         self.combat.update(sim_dt)
+        self.skills.update(sim_dt)
         look_x, look_y = self.player.look
         self.camera.update(sim_dt, self.player.x, self.player.y, look_x, look_y)
         self.world.update(sim_dt)
@@ -121,9 +133,12 @@ class Game:
     def draw(self) -> None:
         self.world.draw(self.canvas, self.camera, self.player, self.combat.enemies)
         self.atmosphere.draw(self.canvas, self.camera, self.player)
+        self.skills.draw_world(self.canvas, self.camera)
         self.effects.draw_world(self.canvas, self.camera)
+        self.skills.draw_overlay(self.canvas)
         self.effects.draw_overlay(self.canvas, self.camera)
-        self.hud.draw(self.canvas, self.player, self.combat, self.camera)
+        self.hud.draw(self.canvas, self.player, self.combat, self.camera,
+                      self.skills)
         if self.debug:
             self.world.debug_draw(self.canvas, self.camera, self.player)
             self.combat.debug_draw(self.canvas, self.camera)
@@ -143,7 +158,14 @@ class Game:
                       f"DASH {int(self.player.dash_ready_ratio * 100)}%  "
                       f"HITSTOP {self.combat.hit_stop * 1000:.0f}ms",
                       24, 168, 1, (112, 255, 145), spacing=1)
-            draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 180, 1,
+            draw_text(self.canvas,
+                      f"VE {int(self.skills.energy.current):03d}  "
+                      f"Q {self.skills.burst.timer:.1f}  "
+                      f"E {self.skills.shadow.timer:.1f}  "
+                      f"R {self.skills.slash.timer:.1f}  "
+                      f"F {self.skills.eclipse.timer:.1f}",
+                      24, 180, 1, (188, 148, 255), spacing=1)
+            draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 192, 1,
                       (112, 255, 145), spacing=1)
 
     # ------------------------------------------------------------------

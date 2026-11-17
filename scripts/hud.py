@@ -17,6 +17,7 @@ from settings import (
 )
 from scripts.combat_ui import CombatUI
 from scripts.pixel_font import draw_text, text_width
+from scripts.skill_hud import SkillHUD
 
 
 class HUD:
@@ -33,6 +34,7 @@ class HUD:
         self._build = self._make_build_label()
         self._intro = self._make_intro()
         self.combat_ui = CombatUI()
+        self.skill_hud = SkillHUD()
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -79,18 +81,22 @@ class HUD:
         return surf
 
     def _make_help(self) -> pygame.Surface:
-        surf = self._panel_frame(520, 50)
+        surf = self._panel_frame(560, 66)
         draw_text(surf, "LMB - ATTACK", 16, 10, 1, (176, 152, 200), spacing=1)
-        draw_text(surf, "E - DASH", 150, 10, 1, (176, 152, 200), spacing=1)
+        draw_text(surf, "C - DASH", 150, 10, 1, (176, 152, 200), spacing=1)
         draw_text(surf, "SPACE - DODGE", 254, 10, 1, (176, 152, 200), spacing=1)
-        draw_text(surf, "SHIFT - RUN", 402, 10, 1, (146, 134, 158), spacing=1)
+        draw_text(surf, "SHIFT - RUN", 422, 10, 1, (146, 134, 158), spacing=1)
         draw_text(surf, "WASD - MOVE", 16, 28, 1, (146, 134, 158), spacing=1)
-        draw_text(surf, "H - HINTS", 150, 28, 1, (112, 102, 124), spacing=1)
-        draw_text(surf, "F1 - DEBUG", 262, 28, 1, (98, 90, 108), spacing=1)
+        draw_text(surf, "Q - VOID BURST", 150, 28, 1, (190, 150, 246), spacing=1)
+        draw_text(surf, "E - SHADOW STEP", 302, 28, 1, (190, 150, 246), spacing=1)
+        draw_text(surf, "R - VOID SLASH", 16, 46, 1, (190, 150, 246), spacing=1)
+        draw_text(surf, "F - ECLIPSE", 150, 46, 1, (214, 174, 255), spacing=1)
+        draw_text(surf, "H - HINTS", 270, 46, 1, (112, 102, 124), spacing=1)
+        draw_text(surf, "F1 - DEBUG", 382, 46, 1, (98, 90, 108), spacing=1)
         return surf
 
     def _make_build_label(self) -> pygame.Surface:
-        label = "PROTOTYPE BUILD 0.3"
+        label = "PROTOTYPE BUILD 0.4"
         w = text_width(label, 1, 1)
         surf = pygame.Surface((w, 9), pygame.SRCALPHA)
         draw_text(surf, label, 0, 0, 1, (72, 64, 82), spacing=1)
@@ -168,7 +174,7 @@ class HUD:
 
     # ------------------------------------------------------------------
     def draw(self, target: pygame.Surface, player, combat_manager=None,
-             camera=None) -> None:
+             camera=None, skills=None) -> None:
         target.blit(self._panel, (24, 22))
         draw_text(target, str(player.level), 68, 60, 3, BONE,
                   spacing=0, shadow=(0, 0, 0), center=True)
@@ -197,9 +203,10 @@ class HUD:
             target.blit(self._title, ((SCREEN_W - 560) // 2, 12))
 
         self.combat_ui.draw_combat(target, combat_manager, camera)
+        self.skill_hud.draw(target, skills, player)
 
         if self.show_help:
-            target.blit(self._help, (24, SCREEN_H - 70))
+            target.blit(self._help, (24, SCREEN_H - 86))
         target.blit(self._build, (SCREEN_W - 24 - self._build.get_width(),
                                   SCREEN_H - 24))
 
