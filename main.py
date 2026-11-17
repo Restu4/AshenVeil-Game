@@ -10,6 +10,7 @@ from settings import FPS, SCREEN_H, SCREEN_W
 from scripts.asset_loader import Assets
 from scripts.atmosphere import Atmosphere
 from scripts.camera import Camera
+from scripts.combat_config import DASH_KEY_NAME
 from scripts.combat_manager import CombatManager
 from scripts.effects import Effects
 from scripts.hud import HUD
@@ -48,6 +49,8 @@ class Game:
         self.running = True
         self.debug = False
         self.time = 0.0
+        # Dash attack key is configurable vertically through combat_config.
+        self.dash_key = getattr(pygame, f"K_{DASH_KEY_NAME.lower()}", pygame.K_e)
         self._scaled: pygame.Surface | None = None
         self._scaled_size = (0, 0)
         if not IS_WEB:
@@ -67,6 +70,9 @@ class Game:
                 self.restart()
             else:
                 self.player.request_attack()
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+            if not self.player.combat.dead:
+                self.player.request_dash()
         elif event.type == pygame.KEYDOWN:
             if self.player.combat.dead:
                 if event.key == pygame.K_ESCAPE and not IS_WEB:
@@ -79,6 +85,8 @@ class Game:
                 self.running = False
             elif event.key == pygame.K_SPACE:
                 self.player.request_dodge()
+            elif event.key == self.dash_key:
+                self.player.request_dash()
             elif event.key in (pygame.K_F1, pygame.K_F3):
                 self.debug = not self.debug
             elif event.key == pygame.K_h:
@@ -96,14 +104,16 @@ class Game:
 
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
+        # Hit stop freezes simulation only; HUD and input keep real time.
+        sim_dt = self.combat.consume_hit_stop(dt)
         keys = pygame.key.get_pressed()
-        self.player.update(dt, keys, self.world.collision)
-        self.combat.update(dt)
+        self.player.update(sim_dt, keys, self.world.collision)
+        self.combat.update(sim_dt)
         look_x, look_y = self.player.look
-        self.camera.update(dt, self.player.x, self.player.y, look_x, look_y)
-        self.world.update(dt)
-        self.atmosphere.update(dt, self.player, self.camera)
-        self.effects.update(dt)
+        self.camera.update(sim_dt, self.player.x, self.player.y, look_x, look_y)
+        self.world.update(sim_dt)
+        self.atmosphere.update(sim_dt, self.player, self.camera)
+        self.effects.update(sim_dt)
         self.hud.update(dt, self.player)
         self.time += dt
 
@@ -113,7 +123,7 @@ class Game:
         self.atmosphere.draw(self.canvas, self.camera, self.player)
         self.effects.draw_world(self.canvas, self.camera)
         self.effects.draw_overlay(self.canvas, self.camera)
-        self.hud.draw(self.canvas, self.player, self.combat.engaged)
+        self.hud.draw(self.canvas, self.player, self.combat, self.camera)
         if self.debug:
             self.world.debug_draw(self.canvas, self.camera, self.player)
             self.combat.debug_draw(self.canvas, self.camera)
@@ -125,9 +135,15 @@ class Game:
                       24, 144, 1, (112, 255, 145), spacing=1)
             draw_text(self.canvas,
                       f"STATE {self.player.state}  "
+                      f"STAGE {self.player.combat.attack_stage}  "
                       f"ENEMIES {len(self.combat.enemies)}",
                       24, 156, 1, (112, 255, 145), spacing=1)
-            draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 168, 1,
+            draw_text(self.canvas,
+                      f"COMBO {self.player.combat.combo_count}  "
+                      f"DASH {int(self.player.dash_ready_ratio * 100)}%  "
+                      f"HITSTOP {self.combat.hit_stop * 1000:.0f}ms",
+                      24, 168, 1, (112, 255, 145), spacing=1)
+            draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 180, 1,
                       (112, 255, 145), spacing=1)
 
     # ------------------------------------------------------------------

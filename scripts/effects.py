@@ -1,8 +1,9 @@
 """Lightweight pixel-art combat feedback.
 
-Slashes are pre-rendered at load time (three stages x four facings) and only
-alpha-blended at runtime.  Particles and damage numbers are plain Python lists
-with small cached surfaces, which keeps the browser frame cheap.
+Slash arcs are pre-rendered per stage/facing at load time and only alpha-blended
+at runtime.  Particles and damage numbers are plain Python lists with small
+cached surfaces, which keeps the browser frame cheap.  Nothing here allocates
+a full-screen surface per frame.
 """
 from __future__ import annotations
 
@@ -18,11 +19,25 @@ from scripts.combat_config import (
 from scripts.pixel_font import draw_text, text_width
 from settings import SCREEN_H, SCREEN_W
 
-SLASH_SIZE = 144
+SLASH_SIZE = 200
 FACING_ANGLE = {"right": 0.0, "down": 90.0, "left": 180.0, "up": 270.0}
+
+# radius, arc span, centre offset, stroke thickness, second arc, dash streak
+SLASH_STYLES = {
+    0: dict(radius=52, span=76, offset=0, thick=6, double=False, streak=True),
+    1: dict(radius=46, span=112, offset=0, thick=5, double=False, streak=False),
+    2: dict(radius=44, span=100, offset=-24, thick=5, double=False, streak=False),
+    3: dict(radius=52, span=124, offset=40, thick=6, double=False, streak=False),
+    4: dict(radius=72, span=360, offset=0, thick=7, double=False, streak=False),
+    5: dict(radius=84, span=176, offset=0, thick=9, double=True, streak=False),
+}
+
+SLASH_DURATION = {0: 0.18, 1: 0.20, 2: 0.20, 3: 0.22, 4: 0.28, 5: 0.36}
 
 PARTICLE_COLORS = ((176, 120, 255), (218, 190, 255), (128, 84, 190),
                    (238, 232, 255), (150, 96, 90))
+CRIT_COLORS = ((255, 224, 160), (255, 246, 214), (214, 164, 255),
+               (240, 200, 128))
 
 
 class Effects:
@@ -30,12 +45,13 @@ class Effects:
         self.rng = random.Random(0xC0FFEE)
         self._slash_cache: dict[tuple[int, str], pygame.Surface] = {}
         self._dot_cache: dict[tuple[tuple[int, int, int], int], pygame.Surface] = {}
-        self._number_cache: dict[tuple[str, int], pygame.Surface] = {}
+        self._number_cache: dict[tuple[str, int, int], pygame.Surface] = {}
         self._vignette = self._build_hurt_vignette()
 
         self.slashes: list[dict] = []
         self.particles: list[dict] = []
         self.numbers: list[dict] = []
+        self.novas: list[dict] = []
         self.hurt_timer = 0.0
         self.flash_timer = 0.0
         self.flash_duration = 0.12
@@ -45,33 +61,43 @@ class Effects:
     # Spawns
     # ------------------------------------------------------------------
     def spawn_slash(self, x: float, y: float, facing: str, stage: int) -> None:
+        stage = max(0, min(5, int(stage)))
         self.slashes.append({
             "x": x,
             "y": y,
             "facing": facing,
-            "stage": max(1, min(3, stage)),
+            "stage": stage,
             "age": 0.0,
-            "duration": 0.20 if stage < 3 else 0.30,
+            "duration": SLASH_DURATION[stage],
         })
-        self.slashes = self.slashes[-6:]
+        self.slashes = self.slashes[-8:]
 
-    def spawn_impact(self, x: float, y: float, heavy: bool = False) -> None:
-        count = 18 if heavy else 9
+    def spawn_impact(self, x: float, y: float, heavy: bool = False,
+                     crit: bool = False) -> None:
+        if crit:
+            count = 22
+            colors = CRIT_COLORS
+            top_speed = 190
+        else:
+            count = 20 if heavy else 9
+            colors = PARTICLE_COLORS
+            top_speed = 165 if heavy else 105
         for _ in range(count):
             angle = self.rng.uniform(-math.pi, math.pi)
-            speed = self.rng.uniform(40, 150 if heavy else 105)
+            speed = self.rng.uniform(40, top_speed)
             self.particles.append({
                 "x": x + self.rng.uniform(-5, 5),
                 "y": y - self.rng.uniform(8, 26),
                 "vx": math.cos(angle) * speed,
                 "vy": math.sin(angle) * speed * 0.7 - 28,
                 "gravity": 240.0,
-                "life": self.rng.uniform(0.22, 0.48 if heavy else 0.38),
-                "max": 0.48,
-                "size": self.rng.choice((2, 2, 3, 4) if heavy else (1, 2, 2, 3)),
-                "color": self.rng.choice(PARTICLE_COLORS),
+                "life": self.rng.uniform(0.22, 0.50 if (heavy or crit) else 0.38),
+                "max": 0.50,
+                "size": self.rng.choice((2, 2, 3, 4) if (heavy or crit)
+                                       else (1, 2, 2, 3)),
+                "color": self.rng.choice(colors),
             })
-        self.particles = self.particles[-160:]
+        self.particles = self.particles[-200:]
 
     def spawn_death(self, x: float, y: float) -> None:
         for _ in range(26):
@@ -89,17 +115,31 @@ class Effects:
                 "color": self.rng.choice(((158, 104, 238), (206, 166, 255),
                                           (92, 58, 138))),
             })
-        self.particles = self.particles[-180:]
+        self.particles = self.particles[-200:]
+
+    def spawn_nova(self, x: float, y: float, radius: float = 112.0) -> None:
+        """Expanding purple ring for the spin and the finisher."""
+        self.novas.append({
+            "x": x,
+            "y": y - 8.0,
+            "age": 0.0,
+            "duration": 0.34,
+            "radius": float(radius),
+        })
+        self.novas = self.novas[-3:]
 
     def spawn_damage_number(self, x: float, y: float, amount: float,
-                            heavy: bool = False) -> None:
+                            heavy: bool = False, crit: bool = False) -> None:
+        text = f"{int(round(amount))}"
+        if crit:
+            text += "!"
         self.numbers.append({
             "x": x + self.rng.uniform(-8, 8),
             "y": y - 46,
             "vy": -34.0,
             "age": 0.0,
             "duration": DAMAGE_NUMBER_TIME,
-            "surface": self._number_surface(f"{int(round(amount))}", heavy),
+            "surface": self._number_surface(text, heavy, crit),
         })
         self.numbers = self.numbers[-16:]
 
@@ -113,7 +153,7 @@ class Effects:
 
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
-        dt = min(dt, 0.05)
+        dt = max(0.0, min(dt, 0.05))
         for slash in self.slashes:
             slash["age"] += dt
         self.slashes = [s for s in self.slashes if s["age"] < s["duration"]]
@@ -132,6 +172,10 @@ class Effects:
             number["vy"] *= 0.9
         self.numbers = [n for n in self.numbers if n["age"] < n["duration"]]
 
+        for nova in self.novas:
+            nova["age"] += dt
+        self.novas = [n for n in self.novas if n["age"] < n["duration"]]
+
         self.hurt_timer = max(0.0, self.hurt_timer - dt)
         self.flash_timer = max(0.0, self.flash_timer - dt)
 
@@ -146,6 +190,20 @@ class Effects:
             surface.set_alpha(alpha)
             sx, sy = camera.to_screen(slash["x"], slash["y"] - 16)
             target.blit(surface, (sx - SLASH_SIZE // 2, sy - SLASH_SIZE // 2))
+
+        for nova in self.novas:
+            t = min(1.0, nova["age"] / nova["duration"])
+            radius = int(nova["radius"] * (0.28 + 0.72 * t))
+            sx, sy = camera.to_screen(nova["x"], nova["y"])
+            fade = max(0.0, 1.0 - t)
+            outer = (int(120 + 100 * fade), int(70 + 90 * fade),
+                     int(170 + 70 * fade))
+            inner = (int(190 + 55 * fade), int(150 + 80 * fade), 255)
+            if radius > 2:
+                pygame.draw.circle(target, outer, (sx, sy), radius, 2)
+            if radius > 9:
+                pygame.draw.circle(target, inner, (sx, sy),
+                                   int(radius * 0.72), 1)
 
         for particle in self.particles:
             sx, sy = camera.to_screen(particle["x"], particle["y"])
@@ -183,6 +241,7 @@ class Effects:
         self.slashes.clear()
         self.particles.clear()
         self.numbers.clear()
+        self.novas.clear()
         self.hurt_timer = 0.0
         self.flash_timer = 0.0
 
@@ -195,18 +254,20 @@ class Effects:
         if cached is not None:
             return cached
 
-        radius = (44.0, 49.0, 58.0)[stage - 1]
-        span = (108.0, 120.0, 152.0)[stage - 1]
-        center = FACING_ANGLE.get(facing, 90.0)
+        style = SLASH_STYLES[stage]
+        radius = style["radius"]
+        span = style["span"]
+        center = FACING_ANGLE.get(facing, 90.0) + style["offset"]
+        thick = style["thick"]
         surf = pygame.Surface((SLASH_SIZE, SLASH_SIZE), pygame.SRCALPHA)
         cx = cy = SLASH_SIZE / 2
-        thick = (5.0, 6.0, 8.0)[stage - 1]
 
-        steps = int(span * 1.6)
+        # Main arc (or full ring for the spin).
+        steps = int(span * 1.7)
         for i in range(steps + 1):
             t = i / steps
-            angle = math.radians(center - span / 2 + span * t)
-            edge = math.sin(math.pi * t) ** 0.5
+            angle = math.radians(center - span / 2 + span * max(0.0, span and t))
+            edge = math.sin(math.pi * t) ** 0.5 if span < 360 else 1.0
             for band in range(int(thick * 2) + 2):
                 r = radius + band * 0.5 - thick * 0.5
                 wobble = math.sin(angle * 5.0 + stage) * 1.2
@@ -216,23 +277,54 @@ class Effects:
                     continue
                 if band <= 1:
                     color = (247, 240, 255)
-                    alpha = int(120 + 130 * edge)
+                    alpha = int(130 + 125 * edge)
                 elif band <= thick:
                     color = (198, 156, 255)
-                    alpha = int(90 + 140 * edge)
+                    alpha = int(95 + 140 * edge)
                 else:
                     color = (124, 76, 190)
                     alpha = int(40 + 100 * (1.0 - band / (thick * 2)))
+                if stage == 0:
+                    color = (236, 196, 255) if band <= 1 else color
                 surf.set_at((x, y), (*color, max(0, min(255, alpha))))
 
+        # Second, wider ghost arc on the finisher.
+        if style["double"]:
+            for i in range(steps + 1):
+                t = i / steps
+                angle = math.radians(center - span / 2 + span * t)
+                edge = math.sin(math.pi * t) ** 0.5
+                for band in range(3):
+                    r = radius + 12 + band * 0.6
+                    x = int(round(cx + math.cos(angle) * r))
+                    y = int(round(cy + math.sin(angle) * r))
+                    if 0 <= x < SLASH_SIZE and 0 <= y < SLASH_SIZE:
+                        surf.set_at((x, y), (158, 104, 238,
+                                             int(40 + 70 * edge)))
+
+        # A dash attack leaves a bright forward streak.
+        if style["streak"]:
+            angle = math.radians(center)
+            for i in range(-radius, radius + 1, 2):
+                x = int(round(cx + math.cos(angle) * i))
+                y = int(round(cy + math.sin(angle) * i))
+                if not (0 <= x < SLASH_SIZE and 0 <= y < SLASH_SIZE):
+                    continue
+                fade = 1.0 - abs(i) / radius
+                if fade <= 0.0:
+                    continue
+                surf.set_at((x, y), (224, 186, 255, int(40 + 150 * fade)))
+
         # A few pixel sparks trailing the arc.
-        for spark in range(5 if stage < 3 else 9):
-            t = (spark + 0.5) / (5 if stage < 3 else 9)
+        spark_count = 5 if stage < 4 else 9
+        for spark in range(spark_count):
+            t = (spark + 0.5) / spark_count
             angle = math.radians(center - span * 0.32 + span * 0.64 * t)
             r = radius + 5.0 + (spark % 3) * 3.0
             x = int(round(cx + math.cos(angle) * r))
             y = int(round(cy + math.sin(angle) * r))
-            surf.set_at((x, y), (236, 214, 255, 210))
+            if 0 <= x < SLASH_SIZE and 0 <= y < SLASH_SIZE:
+                surf.set_at((x, y), (236, 214, 255, 210))
 
         self._slash_cache[key] = surf
         return surf
@@ -246,16 +338,21 @@ class Effects:
             self._dot_cache[key] = dot
         return dot
 
-    def _number_surface(self, text: str, heavy: bool) -> pygame.Surface:
-        scale = 2 if heavy else 1
-        key = (text, scale)
+    def _number_surface(self, text: str, heavy: bool, crit: bool) -> pygame.Surface:
+        scale = 3 if crit else (2 if heavy else 1)
+        key = (text, scale, 1 if crit else 0)
         surface = self._number_cache.get(key)
         if surface is not None:
             return surface
         width = text_width(text, scale, 1) + 2
         height = 7 * scale + 2
         surface = pygame.Surface((width, height), pygame.SRCALPHA)
-        color = (238, 186, 255) if heavy else (224, 212, 240)
+        if crit:
+            color = (255, 224, 160)
+        elif heavy:
+            color = (238, 186, 255)
+        else:
+            color = (224, 212, 240)
         draw_text(surface, text, 0, 0, scale, color, spacing=1,
                   shadow=(6, 4, 10), center=False)
         self._number_cache[key] = surface

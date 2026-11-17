@@ -1,4 +1,4 @@
-"""ASHEN VEIL HUD: vitality, stamina, level, title and control hints."""
+"""ASHEN VEIL HUD: vitality, dash gauge, level, title and control hints."""
 from __future__ import annotations
 
 import math
@@ -65,7 +65,7 @@ class HUD:
             pygame.draw.circle(surf, (185, 167, 205, 210), (int(x), int(y)), 2)
         draw_text(surf, "LV", 44, 26, 1, (137, 124, 153), spacing=1, center=True)
         draw_text(surf, "VITALITY", 90, 10, 1, (158, 142, 169), spacing=2)
-        draw_text(surf, "STAMINA", 90, 44, 1, (137, 128, 105), spacing=2)
+        draw_text(surf, "DASH", 90, 44, 1, (137, 128, 105), spacing=2)
         draw_text(surf, "THE VEILED", 90, 74, 1, (99, 89, 111), spacing=2)
 
     def _make_title(self) -> pygame.Surface:
@@ -79,17 +79,18 @@ class HUD:
         return surf
 
     def _make_help(self) -> pygame.Surface:
-        surf = self._panel_frame(444, 50)
+        surf = self._panel_frame(520, 50)
         draw_text(surf, "LMB - ATTACK", 16, 10, 1, (176, 152, 200), spacing=1)
-        draw_text(surf, "SPACE - DODGE", 146, 10, 1, (176, 152, 200), spacing=1)
-        draw_text(surf, "SHIFT - RUN", 316, 10, 1, (146, 134, 158), spacing=1)
+        draw_text(surf, "E - DASH", 150, 10, 1, (176, 152, 200), spacing=1)
+        draw_text(surf, "SPACE - DODGE", 254, 10, 1, (176, 152, 200), spacing=1)
+        draw_text(surf, "SHIFT - RUN", 402, 10, 1, (146, 134, 158), spacing=1)
         draw_text(surf, "WASD - MOVE", 16, 28, 1, (146, 134, 158), spacing=1)
-        draw_text(surf, "H - HINTS", 160, 28, 1, (112, 102, 124), spacing=1)
-        draw_text(surf, "F1 - DEBUG", 278, 28, 1, (98, 90, 108), spacing=1)
+        draw_text(surf, "H - HINTS", 150, 28, 1, (112, 102, 124), spacing=1)
+        draw_text(surf, "F1 - DEBUG", 262, 28, 1, (98, 90, 108), spacing=1)
         return surf
 
     def _make_build_label(self) -> pygame.Surface:
-        label = "PROTOTYPE BUILD 0.2"
+        label = "PROTOTYPE BUILD 0.3"
         w = text_width(label, 1, 1)
         surf = pygame.Surface((w, 9), pygame.SRCALPHA)
         draw_text(surf, label, 0, 0, 1, (72, 64, 82), spacing=1)
@@ -131,10 +132,6 @@ class HUD:
         self.help_timer += dt
         if self.help_timer > 13.0:
             self.show_help = False
-        if player.exhausted:
-            self._flash += dt
-        else:
-            self._flash = 0.0
 
     # ------------------------------------------------------------------
     def _bar(
@@ -170,7 +167,8 @@ class HUD:
         pygame.draw.rect(target, (106, 94, 119), (x - 2, y - 2, w + 4, h + 4), 1)
 
     # ------------------------------------------------------------------
-    def draw(self, target: pygame.Surface, player, enemy=None) -> None:
+    def draw(self, target: pygame.Surface, player, combat_manager=None,
+             camera=None) -> None:
         target.blit(self._panel, (24, 22))
         draw_text(target, str(player.level), 68, 60, 3, BONE,
                   spacing=0, shadow=(0, 0, 0), center=True)
@@ -183,21 +181,22 @@ class HUD:
         self._bar(target, bx, 43, bw, 15, player.health / player.health_max,
                   BLOOD, BLOOD_LIGHT, BLOOD_DARK, ticks=5, glow=True)
 
-        if player.exhausted and int(self._flash * 5) % 2 == 0:
-            draw_text(target, "SPENT",
-                      bx + bw - text_width("SPENT", 1, 1), 66, 1,
-                      (164, 102, 94), spacing=1)
-        elif player.combat.blocked_flash > 0.0 and int(self.time * 12) % 2 == 0:
-            draw_text(target, "NO STAMINA",
-                      bx + bw - text_width("NO STAMINA", 1, 1), 66, 1,
-                      (164, 102, 94), spacing=1)
-        self._bar(target, bx, 78, bw - 22, 9, player.stamina.ratio,
-                  (139, 146, 100), (177, 181, 126), (83, 92, 62), ticks=4)
+        dash = max(0.0, min(1.0, player.dash_ready_ratio))
+        if dash >= 1.0:
+            colors = ((126, 92, 186), (208, 174, 255), (70, 50, 110))
+            label = "READY"
+        else:
+            colors = ((74, 54, 116), (140, 108, 206), (40, 30, 66))
+            label = f"{int(dash * 100):02d}%"
+        draw_text(target, label, bx + bw - text_width(label, 1, 1), 66, 1,
+                  (168, 148, 214) if dash >= 1.0 else (118, 104, 138),
+                  spacing=1)
+        self._bar(target, bx, 78, bw - 22, 9, dash, *colors, ticks=4)
 
         if self._intro_alpha() < 90:
             target.blit(self._title, ((SCREEN_W - 560) // 2, 12))
 
-        self.combat_ui.draw_enemy(target, enemy)
+        self.combat_ui.draw_combat(target, combat_manager, camera)
 
         if self.show_help:
             target.blit(self._help, (24, SCREEN_H - 70))

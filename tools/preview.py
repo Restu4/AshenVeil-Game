@@ -90,16 +90,62 @@ def _place_duel(game) -> None:
     game.camera.snap(player.x + player.look[0], player.y + player.look[1])
 
 
+def _place_pack(game) -> None:
+    """Three knights ring the player on open plaza ground."""
+    from scripts import enemy_ai
+
+    _place_duel(game)
+    player = game.player
+    player.x, player.y = 1632.0, 1420.0
+    player.facing = "right"
+    spots = ((56.0, 0.0), (-54.0, 6.0), (2.0, -58.0))
+    for enemy, (dx, dy) in zip(game.combat.enemies, spots):
+        enemy.x = enemy.home_x = player.x + dx
+        enemy.y = enemy.home_y = player.y + dy
+        enemy.facing = "left"
+        enemy.state = enemy_ai.IDLE
+        enemy.aggro_timer = 3.0
+        enemy.attack_cooldown = 5.0
+    game.combat.crit_chance = 0.0
+    game.camera.snap(player.x + player.look[0], player.y + player.look[1])
+
+
 def combat_shots(game, out: Path) -> None:
-    """Deterministic combat stills: wind-up, impact and the death veil."""
+    """Deterministic combat stills: combo, dash, impact and death."""
+    from scripts.combat_config import COMBO_WINDOW
+    from scripts.player_combat import IDLE
+
     _place_duel(game)
     player = game.player
     player.request_attack()
-    for _ in range(9):                       # ~0.15 s: active hit frames
+    for _ in range(9):                       # active hit frames
         game.update(1 / 60)
     game.draw()
     pygame.image.save(game.canvas, out / "combat_impact.png")
-    print("  combat_impact  slash + damage number + engaged bar")
+    print("  combat_impact  slash + damage number + critical flash")
+
+    _place_pack(game)
+    player = game.player
+    combat = player.combat
+    combat.state = IDLE
+    combat.attack_stage = 4                  # next request starts the finisher
+    combat.combo_window = COMBO_WINDOW
+    player.request_attack()
+    for _ in range(12):
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "combat_finisher.png")
+    print("  combat_finisher five-hit finisher, nova and enemy bars")
+
+    _place_pack(game)
+    player = game.player
+    player.facing = "right"
+    player.request_dash()
+    for _ in range(7):
+        game.update(1 / 60)
+    game.draw()
+    pygame.image.save(game.canvas, out / "combat_dash.png")
+    print("  combat_dash    dash streak + impact")
 
     _place_duel(game)
     player = game.player

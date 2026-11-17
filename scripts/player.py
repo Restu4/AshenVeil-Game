@@ -11,7 +11,14 @@ from scripts.combat_config import (
     ATTACK_HEAVY,
     ATTACK_KNOCKBACK,
     ATTACK_REACH,
+    ATTACK_SPIN,
     ATTACK_WIDTH,
+    DASH_DAMAGE,
+    DASH_DURATION,
+    DASH_KNOCKBACK,
+    DASH_REACH,
+    DASH_SPEED,
+    DASH_WIDTH,
     DODGE_DURATION,
     DODGE_SPEED,
     PLAYER_HEALTH_MAX,
@@ -21,6 +28,7 @@ from scripts.health import Health
 from scripts.hitbox import AttackHitbox
 from scripts.player_combat import (
     ATTACK_STATES,
+    DASH_ATTACK,
     HURT,
     IDLE,
     RUN,
@@ -29,15 +37,12 @@ from scripts.player_combat import (
 )
 from scripts.animation import CharacterAnimator
 from scripts.collision import CollisionWorld
-from scripts.stamina import Stamina
 from settings import (
     PLAYER_ACCEL,
     PLAYER_FRICTION,
     PLAYER_RUN_SPEED,
     PLAYER_SCALE,
     PLAYER_WALK_SPEED,
-    STAMINA_DRAIN,
-    STAMINA_MAX,
 )
 
 FRAME_W = 64
@@ -87,13 +92,13 @@ class Player:
 
         self.level = 7
         self.vitality = Health(PLAYER_HEALTH_MAX)
-        self.stamina = Stamina(STAMINA_MAX)
         self.combat = PlayerCombat(self)
         self.footstep_timer = 0.0
         self.footstep_pulse = False
         self.step_side = 0
         self._anim_attack_id = -1
         self._was_dodging = False
+        self._was_dashing = False
 
     # ------------------------------------------------------------------
     # Compatibility accessors used by the HUD and atmosphere.
@@ -112,12 +117,8 @@ class Player:
         return self.vitality.maximum
 
     @property
-    def exhausted(self) -> bool:
-        return self.stamina.exhausted
-
-    @property
-    def stamina_max(self) -> float:
-        return self.stamina.maximum
+    def dash_ready_ratio(self) -> float:
+        return self.combat.dash_ready_ratio
 
     # ------------------------------------------------------------------
     # Combat intent (called from event handling so clicks are never lost).
@@ -128,12 +129,15 @@ class Player:
     def request_dodge(self) -> None:
         self.combat.request_dodge()
 
+    def request_dash(self) -> None:
+        self.combat.request_dash()
+
     def take_damage(self, amount: float, source_x: float, source_y: float) -> bool:
         return self.combat.take_damage(amount, source_x, source_y)
 
     # ------------------------------------------------------------------
     def update(self, dt: float, keys, collision: CollisionWorld) -> None:
-        dt = min(dt, 0.05)
+        dt = max(0.0, min(dt, 0.05))
         ix = 0.0
         iy = 0.0
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
@@ -154,7 +158,6 @@ class Player:
 
         combat = self.combat
         combat.update(dt)
-        self.stamina.update(dt)
 
         if combat.dead:
             self.vx = self.vy = 0.0
@@ -166,17 +169,24 @@ class Player:
             self._play_animation(dt, "idle")
             return
 
-        # Facing is locked during a swing and a roll, and while staggering.
-        if self.moving and combat.state not in ATTACK_STATES \
-                and not combat.dodging and combat.state != HURT:
+        # Facing is locked during a swing but can still be aimed during the
+        # startup frames, which keeps the combo responsive.
+        can_turn = (
+            combat.state not in ATTACK_STATES
+            and combat.state != DASH_ATTACK
+            and not combat.dodging
+            and combat.state != HURT
+        )
+        if combat.state in ATTACK_STATES and combat.attack_phase == "startup":
+            can_turn = True
+        if self.moving and can_turn:
             self._face(ix, iy)
 
         want_run = (
             (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT])
             and self.moving
-            and not self.stamina.exhausted
-            and self.stamina.current > 1.0
             and combat.state not in ATTACK_STATES
+            and combat.state != DASH_ATTACK
             and not combat.dodging
             and combat.state != HURT
         )
@@ -184,25 +194,38 @@ class Player:
 
         if combat.dodging:
             progress = 1.0 - max(0.0, combat.dodge_time) / DODGE_DURATION
-            speed = DODGE_SPEED * (0.62 + 0.38 * progress)
+            speed = DODGE_SPEED * (0.66 + 0.34 * progress)
             self.vx = combat.dodge_x * speed
             self.vy = combat.dodge_y * speed
             self._move(dt, collision)
             self._was_dodging = True
+            self._was_dashing = False
+        elif combat.dashing:
+            progress = 1.0 - max(0.0, combat.dash_time) / DASH_DURATION
+            speed = DASH_SPEED * (0.86 + 0.14 * progress)
+            self.vx = combat.dash_x * speed
+            self.vy = combat.dash_y * speed
+            self._move(dt, collision)
+            self._was_dashing = True
+            self._was_dodging = False
         elif combat.state == HURT:
             self._apply_knockback(dt, collision)
+            self._was_dodging = False
+            self._was_dashing = False
         else:
-            if self._was_dodging:
+            if self._was_dodging or self._was_dashing:
                 self.vx = self.vy = 0.0
                 self._was_dodging = False
+                self._was_dashing = False
             scale = combat.movement_scale
             speed = (PLAYER_RUN_SPEED if want_run else PLAYER_WALK_SPEED) * scale
             target_vx = ix * speed
             target_vy = iy * speed
             if combat.state in ATTACK_STATES:
-                # Slight committed shuffle; bleed momentum quickly.
-                self.vx = _approach(self.vx, target_vx, PLAYER_FRICTION * dt)
-                self.vy = _approach(self.vy, target_vy, PLAYER_FRICTION * dt)
+                # Fluid footwork: attacks keep most of the player's mobility.
+                accel = PLAYER_ACCEL * 0.85 if self.moving else PLAYER_FRICTION
+                self.vx = _approach(self.vx, target_vx, accel * dt)
+                self.vy = _approach(self.vy, target_vy, accel * dt)
             elif self.moving:
                 self.vx = _approach(self.vx, target_vx, PLAYER_ACCEL * dt)
                 self.vy = _approach(self.vy, target_vy, PLAYER_ACCEL * dt)
@@ -212,11 +235,6 @@ class Player:
             self._move(dt, collision)
 
         self.speed = math.hypot(self.vx, self.vy)
-
-        # Running drains stamina; everything else waits out the regen delay.
-        if want_run and self.speed > 45.0:
-            self.stamina.drain(STAMINA_DRAIN * dt)
-
         self._play_animation(dt, "run" if want_run else "walk")
 
     # ------------------------------------------------------------------
@@ -265,9 +283,10 @@ class Player:
             self.animator.play("hurt", self.facing)
         elif combat.dodging:
             self.animator.play("dodge", self.facing)
-        elif combat.state in ATTACK_STATES:
+        elif combat.state in ATTACK_STATES or combat.dashing:
             if combat.attack_id != self._anim_attack_id:
                 self.animator.play("attack", self.facing, restart=True)
+                self.animator.current.fps = combat.attack_fps
                 self._anim_attack_id = combat.attack_id
         else:
             if self.moving:
@@ -294,19 +313,37 @@ class Player:
     @property
     def attack_hitbox(self) -> AttackHitbox | None:
         combat = self.combat
+        if combat.dashing:
+            return AttackHitbox(
+                self.x,
+                self.y,
+                self.facing,
+                damage=DASH_DAMAGE,
+                knockback=DASH_KNOCKBACK,
+                heavy=True,
+                attack_id=combat.attack_id,
+                owner=self,
+                reach=DASH_REACH,
+                width=DASH_WIDTH,
+                shape="arc",
+                stage=0,
+            )
         if not combat.attack_active:
             return None
+        stage = max(1, combat.attack_stage)
         return AttackHitbox(
             self.x,
             self.y,
             self.facing,
-            damage=ATTACK_DAMAGE[max(0, combat.attack_stage - 1)],
-            knockback=ATTACK_KNOCKBACK[max(0, combat.attack_stage - 1)],
-            heavy=ATTACK_HEAVY[max(0, combat.attack_stage - 1)],
+            damage=ATTACK_DAMAGE[stage - 1],
+            knockback=ATTACK_KNOCKBACK[stage - 1],
+            heavy=ATTACK_HEAVY[stage - 1],
             attack_id=combat.attack_id,
             owner=self,
-            reach=ATTACK_REACH,
-            width=ATTACK_WIDTH,
+            reach=ATTACK_REACH[stage - 1],
+            width=ATTACK_WIDTH[stage - 1],
+            shape="spin" if ATTACK_SPIN[stage - 1] else "arc",
+            stage=stage,
         )
 
     # ------------------------------------------------------------------
@@ -323,8 +360,8 @@ class Player:
         self.footstep_pulse = False
         self._anim_attack_id = -1
         self._was_dodging = False
+        self._was_dashing = False
         self.vitality.reset()
-        self.stamina.reset()
         self.combat.reset()
         self.animator.play("idle", facing, restart=True)
 

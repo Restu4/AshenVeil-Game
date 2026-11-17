@@ -98,11 +98,13 @@ def update_enemy(enemy, dt: float, player, collision) -> None:
         return
 
     if not player_dead and enemy.aggro_timer > 0.0:
-        if distance <= ENEMY_ATTACK_RANGE and enemy.attack_cooldown <= 0.0:
+        hold = ENEMY_ATTACK_RANGE * (0.82 if enemy.can_attack else 1.28)
+        if (distance <= ENEMY_ATTACK_RANGE and enemy.attack_cooldown <= 0.0
+                and enemy.can_attack):
             _start_attack(enemy, player, dx, dy)
         else:
             enemy.state = CHASE
-            if distance > ENEMY_ATTACK_RANGE * 0.8:
+            if distance > hold:
                 speed = ENEMY_CHASE_SPEED
                 enemy.facing = facing_from_delta(dx, dy, enemy.facing)
                 _steer(enemy, dt, collision, dx / max(distance, 0.001),
@@ -117,6 +119,8 @@ def update_enemy(enemy, dt: float, player, collision) -> None:
 
 # ---------------------------------------------------------------------------
 def _start_attack(enemy, player, dx: float, dy: float) -> None:
+    if not enemy.can_attack:
+        return
     enemy.state = ATTACK
     enemy.state_time = 0.0
     enemy.attack_time = 0.0

@@ -28,11 +28,6 @@ PLAYER_FRICTION = 1700.0
 
 CAMERA_SMOOTH = 7.5
 
-STAMINA_MAX = 100.0
-STAMINA_DRAIN = 19.0
-STAMINA_REGEN = 25.0
-STAMINA_REGEN_DELAY = 0.8
-
 # --------------------------------------------------------------------------
 # Palette — sampled from the character sheet + environment atlas.
 # --------------------------------------------------------------------------

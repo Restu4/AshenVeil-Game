@@ -1,4 +1,4 @@
-"""Player combat state machine: attacks, combo, dodge and i-frames.
+"""Player combat state machine: five-hit combo, dodge, dash attack and i-frames.
 
 The controller owns timers and intent.  ``Player`` owns movement, collision
 and animation, which keeps the two concerns from turning into one big class.
@@ -10,17 +10,27 @@ import math
 from scripts.combat_config import (
     ATTACK_ACTIVE,
     ATTACK_COMBO_OPEN,
+    ATTACK_COUNT,
     ATTACK_DAMAGE,
+    ATTACK_FPS,
     ATTACK_HEAVY,
     ATTACK_KNOCKBACK,
-    ATTACK_STAMINA_COST,
+    ATTACK_MOVE_SCALE,
+    ATTACK_RECOVERY,
     ATTACK_STARTUP,
     ATTACK_TOTAL,
+    COMBO_RESET_TIME,
     COMBO_WINDOW,
+    CRIT_FLASH_TIME,
+    DASH_COOLDOWN,
+    DASH_DAMAGE,
+    DASH_DURATION,
+    DASH_FPS,
+    DASH_IFRAME,
+    DASH_KNOCKBACK,
     DODGE_COOLDOWN,
     DODGE_DURATION,
     DODGE_IFRAME,
-    DODGE_STAMINA_COST,
     PLAYER_HIT_INVULN,
     PLAYER_HURT_KNOCKBACK,
     PLAYER_HURT_TIME,
@@ -33,11 +43,14 @@ RUN = "RUN"
 ATTACK_1 = "ATTACK_1"
 ATTACK_2 = "ATTACK_2"
 ATTACK_3 = "ATTACK_3"
+ATTACK_4 = "ATTACK_4"
+ATTACK_5 = "ATTACK_5"
+DASH_ATTACK = "DASH_ATTACK"
 DODGE = "DODGE"
 HURT = "HURT"
 DEAD = "DEAD"
 
-ATTACK_STATES = (ATTACK_1, ATTACK_2, ATTACK_3)
+ATTACK_STATES = (ATTACK_1, ATTACK_2, ATTACK_3, ATTACK_4, ATTACK_5)
 
 FACING_VECTORS = {
     "down": (0.0, 1.0),
@@ -59,17 +72,24 @@ class PlayerCombat:
     def __init__(self, player) -> None:
         self.player = player
         self.state = IDLE
-        self.attack_stage = 0           # 1..3 while swinging
+        self.attack_stage = 0           # 1..5 while swinging
         self.attack_time = 0.0
         self.attack_id = 0
-        self.attack_consumed = 0        # damage events already resolved
+        self.attack_consumed = 0        # kept for debug tooling
         self.combo_buffer = False
         self.combo_window = 0.0
+        self.combo_count = 0            # landed hits in the HUD counter
+        self.combo_decay = 0.0
 
         self.dodge_time = 0.0
         self.dodge_cooldown = 0.0
         self.dodge_x = 0.0
         self.dodge_y = 0.0
+
+        self.dash_time = 0.0
+        self.dash_cooldown = 0.0
+        self.dash_x = 0.0
+        self.dash_y = 0.0
 
         self.invuln = 0.0
         self.hurt_time = 0.0
@@ -78,20 +98,20 @@ class PlayerCombat:
         self.hurt_signal = False
         self.dead = False
         self.death_time = 0.0
+        self.crit_flash = 0.0
 
     # ------------------------------------------------------------------
     # Intent
     # ------------------------------------------------------------------
     def request_attack(self) -> None:
-        if self.dead or self.state in (HURT, DODGE):
+        if self.dead or self.state in (HURT, DODGE, DASH_ATTACK):
             return
         if self.state in ATTACK_STATES:
-            # Buffer the next link once the swing is far enough along.
-            if self.attack_time >= ATTACK_COMBO_OPEN:
-                self.combo_buffer = True
+            # Rapid clicks are buffered into exactly one next link.
+            self.combo_buffer = True
             return
 
-        if self.combo_window > 0.0 and 1 <= self.attack_stage < 3:
+        if self.combo_window > 0.0 and 1 <= self.attack_stage < ATTACK_COUNT:
             self._start_attack(self.attack_stage + 1)
         else:
             self._start_attack(1)
@@ -100,11 +120,6 @@ class PlayerCombat:
         if self.dead or self.state in (HURT, DODGE):
             return
         if self.dodge_cooldown > 0.0:
-            return
-        if self.state in ATTACK_STATES and self.attack_phase != "recovery":
-            return  # attacks commit through startup and active frames
-        if not self.player.stamina.spend(DODGE_STAMINA_COST):
-            self.blocked_flash = 0.55
             return
 
         ix, iy = self.player.input_x, self.player.input_y
@@ -122,13 +137,36 @@ class PlayerCombat:
         self.attack_time = 0.0
         self.combo_buffer = False
         self.combo_window = 0.0
+        self.dash_time = 0.0
+
+    def request_dash(self) -> None:
+        """Dash attack: a short forward burst with a wide sword strike."""
+        if self.dead or self.state in (HURT, DODGE, DASH_ATTACK):
+            return
+        if self.dash_cooldown > 0.0:
+            return
+
+        ix, iy = self.player.input_x, self.player.input_y
+        if abs(ix) < 0.001 and abs(iy) < 0.001:
+            ix, iy = FACING_VECTORS[self.player.facing]
+        length = math.hypot(ix, iy) or 1.0
+        self.dash_x, self.dash_y = ix / length, iy / length
+        self.player.facing = _facing_from_vector(ix, iy, self.player.facing)
+
+        self.dash_time = DASH_DURATION
+        self.dash_cooldown = DASH_COOLDOWN
+        self.invuln = max(self.invuln, DASH_IFRAME)
+        self.state = DASH_ATTACK
+        self.attack_stage = 0
+        self.attack_time = 0.0
+        self.attack_id += 1
+        self.combo_buffer = False
+        self.combo_window = 0.0
+        self.dodge_time = 0.0
 
     # ------------------------------------------------------------------
     def _start_attack(self, stage: int) -> bool:
-        if not self.player.stamina.spend(ATTACK_STAMINA_COST):
-            self.blocked_flash = 0.55
-            return False
-        self.state = (ATTACK_1, ATTACK_2, ATTACK_3)[stage - 1]
+        self.state = ATTACK_STATES[stage - 1]
         self.attack_stage = stage
         self.attack_time = 0.0
         self.attack_id += 1
@@ -138,7 +176,7 @@ class PlayerCombat:
         return True
 
     def _finish_attack(self) -> None:
-        if self.attack_stage < 3:
+        if self.attack_stage < ATTACK_COUNT:
             self.combo_window = COMBO_WINDOW
         else:
             self.combo_window = 0.0
@@ -151,10 +189,18 @@ class PlayerCombat:
     # Timers
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
+        dt = max(0.0, dt)
         self.dodge_cooldown = max(0.0, self.dodge_cooldown - dt)
+        self.dash_cooldown = max(0.0, self.dash_cooldown - dt)
         self.invuln = max(0.0, self.invuln - dt)
         self.hurt_flash = max(0.0, self.hurt_flash - dt)
         self.blocked_flash = max(0.0, self.blocked_flash - dt)
+        self.crit_flash = max(0.0, self.crit_flash - dt)
+
+        if self.combo_decay > 0.0:
+            self.combo_decay = max(0.0, self.combo_decay - dt)
+            if self.combo_decay <= 0.0:
+                self.combo_count = 0
 
         if self.dead:
             self.death_time += dt
@@ -173,11 +219,21 @@ class PlayerCombat:
                 self.state = IDLE
             return
 
+        if self.state == DASH_ATTACK:
+            self.dash_time -= dt
+            if self.dash_time <= 0.0:
+                self.dash_time = 0.0
+                self.state = IDLE
+                self.attack_stage = 0
+                self.combo_window = 0.0
+            return
+
         if self.state in ATTACK_STATES:
             self.attack_time += dt
-            if self.attack_time >= ATTACK_TOTAL:
-                if self.combo_buffer and self.attack_stage < 3 \
-                        and self._start_attack(self.attack_stage + 1):
+            total = ATTACK_TOTAL[self.attack_stage - 1]
+            if self.attack_time >= total:
+                if self.combo_buffer and self.attack_stage < ATTACK_COUNT:
+                    self._start_attack(self.attack_stage + 1)
                     return
                 self._finish_attack()
                 return
@@ -188,7 +244,7 @@ class PlayerCombat:
                 self.attack_stage = 0
 
     # ------------------------------------------------------------------
-    # Damage
+    # Damage / feedback
     # ------------------------------------------------------------------
     def take_damage(self, amount: float, source_x: float, source_y: float) -> bool:
         if self.dead or self.invuln > 0.0:
@@ -203,7 +259,10 @@ class PlayerCombat:
         self.attack_time = 0.0
         self.combo_window = 0.0
         self.combo_buffer = False
+        self.combo_count = 0
+        self.combo_decay = 0.0
         self.dodge_time = 0.0
+        self.dash_time = 0.0
 
         dx = self.player.x - source_x
         dy = self.player.y - source_y
@@ -223,6 +282,13 @@ class PlayerCombat:
             self.hurt_time = PLAYER_HURT_TIME
         return True
 
+    def register_hit(self, crit: bool = False) -> None:
+        """Called by the combat manager when a swing connects."""
+        self.combo_count += 1
+        self.combo_decay = COMBO_RESET_TIME
+        if crit:
+            self.crit_flash = CRIT_FLASH_TIME
+
     def consume_hurt_signal(self) -> bool:
         signal = self.hurt_signal
         self.hurt_signal = False
@@ -236,9 +302,14 @@ class PlayerCombat:
         self.attack_consumed = 0
         self.combo_buffer = False
         self.combo_window = 0.0
+        self.combo_count = 0
+        self.combo_decay = 0.0
         self.dodge_time = 0.0
         self.dodge_cooldown = 0.0
         self.dodge_x = self.dodge_y = 0.0
+        self.dash_time = 0.0
+        self.dash_cooldown = 0.0
+        self.dash_x = self.dash_y = 0.0
         self.invuln = 0.0
         self.hurt_time = 0.0
         self.hurt_flash = 0.0
@@ -246,19 +317,25 @@ class PlayerCombat:
         self.hurt_signal = False
         self.dead = False
         self.death_time = 0.0
+        self.crit_flash = 0.0
 
     # ------------------------------------------------------------------
     # Queries
     # ------------------------------------------------------------------
     @property
     def attack_phase(self) -> str | None:
+        if self.state == DASH_ATTACK:
+            return "active" if self.dash_time > 0.0 else None
         if self.state not in ATTACK_STATES:
             return None
-        if self.attack_time < ATTACK_STARTUP:
+        startup = ATTACK_STARTUP[self.attack_stage - 1]
+        active = ATTACK_ACTIVE[self.attack_stage - 1]
+        total = ATTACK_TOTAL[self.attack_stage - 1]
+        if self.attack_time < startup:
             return "startup"
-        if self.attack_time < ATTACK_STARTUP + ATTACK_ACTIVE:
+        if self.attack_time < startup + active:
             return "active"
-        if self.attack_time < ATTACK_TOTAL + 0.001:
+        if self.attack_time < total + 0.001:
             return "recovery"
         return None
 
@@ -267,29 +344,63 @@ class PlayerCombat:
         return self.attack_phase == "active"
 
     @property
+    def stage_startup(self) -> float:
+        if not 1 <= self.attack_stage <= ATTACK_COUNT:
+            return 0.0
+        return ATTACK_STARTUP[self.attack_stage - 1]
+
+    @property
     def attack_damage(self) -> float:
+        if self.state == DASH_ATTACK:
+            return DASH_DAMAGE
         return ATTACK_DAMAGE[max(0, self.attack_stage - 1)]
 
     @property
     def attack_knockback(self) -> float:
+        if self.state == DASH_ATTACK:
+            return DASH_KNOCKBACK
         return ATTACK_KNOCKBACK[max(0, self.attack_stage - 1)]
 
     @property
     def attack_heavy(self) -> bool:
+        if self.state == DASH_ATTACK:
+            return True
         return ATTACK_HEAVY[max(0, self.attack_stage - 1)]
+
+    @property
+    def attack_fps(self) -> float:
+        if self.state == DASH_ATTACK:
+            return DASH_FPS
+        return ATTACK_FPS[max(0, self.attack_stage - 1)]
 
     @property
     def dodging(self) -> bool:
         return self.state == DODGE and self.dodge_time > 0.0
 
     @property
+    def dashing(self) -> bool:
+        return self.state == DASH_ATTACK and self.dash_time > 0.0
+
+    @property
     def invulnerable(self) -> bool:
         return self.invuln > 0.0 or self.dead
+
+    @property
+    def can_buffer(self) -> bool:
+        return self.state in ATTACK_STATES and self.attack_time >= ATTACK_COMBO_OPEN
 
     @property
     def movement_scale(self) -> float:
         if self.dead or self.state in (HURT, DODGE):
             return 0.0
+        if self.state == DASH_ATTACK:
+            return 1.0
         if self.state in ATTACK_STATES:
-            return 0.20
+            return ATTACK_MOVE_SCALE[self.attack_stage - 1]
         return 1.0
+
+    @property
+    def dash_ready_ratio(self) -> float:
+        if DASH_COOLDOWN <= 0.0:
+            return 1.0
+        return max(0.0, min(1.0, 1.0 - self.dash_cooldown / DASH_COOLDOWN))
