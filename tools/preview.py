@@ -73,6 +73,7 @@ def main() -> None:
     combat_shots(game, out)
     skill_shots(game, out)
     phase5_shots(game, out)
+    phase6_shots(game, out)
     shutil.rmtree(_PREVIEW_SAVE_DIR, ignore_errors=True)
     pygame.quit()
 
@@ -388,6 +389,76 @@ def phase5_shots(game, out: Path) -> None:
               "victory screen with return and continue")
     else:                                   # pragma: no cover - safety net
         print(f"  phase5_victory skipped (state={game.state})")
+
+
+def phase6_shots(game, out: Path) -> None:
+    """Inventory overlay, item details and world loot for Phase 6."""
+    from main import PLAY
+
+    # Return to a clean stage-1 village (phase5_shots ends in VICTORY).
+    game.start_level("01")
+    game.state = PLAY
+    game.hud.time = 9.0
+    game.level.banner_timer = 0.0
+    game.loot.clear()
+    game.inventory_screen.reveal = 1.0
+    game.inventory_screen.time = 2.0
+
+    # Build a representative loadout: a full set of equipped gear plus a
+    # satchel spanning every rarity, with visible stack quantities.
+    game.inventory.entries.clear()
+    game.equipment.clear()
+    for item_id in (
+        "rusted_blade", "ashplate_armor", "travelers_hood",
+        "bone_ring", "ember_ring", "ashen_pendant",
+        "warden_talisman", "veilweave_robe", "stalker_boots",
+        "veilcleaver", "duskbound_greatsword", "hollow_redeemer",
+        "minor_health_potion", "void_potion", "ash_shard",
+        "guardian_ember",
+    ):
+        game.inventory.add(item_id, 1)
+    game.inventory.add("minor_health_potion", 2)
+    game.inventory.add("void_potion", 1)
+    game.inventory.add("ash_shard", 6)
+    game.inventory.add("guardian_ember", 1)
+    for item_id in (
+        "ashfang_saber", "wardens_helm", "gravesteel_plate",
+        "voidweave_gloves", "guardian_greaves", "void_signet",
+        "shroud_of_dusk",
+    ):
+        game.inventory.add(item_id, 1)
+        game.equipment.equip(item_id)
+
+    _idle_player(game, 1660.0, 1210.0, "up")
+
+    # Shot 1: full overlay with all seven slots and a stacked satchel.
+    game.open_inventory()
+    game.inventory_screen.selected = ("bag", 0)
+    game.inventory_screen.update(0.2)
+    _save(game, out, "phase6_inventory_equipped",
+          "seven slots, rarity borders and stacked consumables")
+
+    # Shot 2: legendary detail card with comparison and action buttons.
+    legendary = next(
+        i for i, entry in enumerate(game.inventory.entries)
+        if entry.item_id == "hollow_redeemer"
+    )
+    game.inventory_screen.selected = ("bag", legendary)
+    _save(game, out, "phase6_inventory_details",
+          "legendary details, comparison and action buttons")
+
+    # Shot 3: world loot with rarity glow and the G pickup prompt.
+    game.close_inventory()
+    game.loot.clear()
+    game.loot.spawn(game.player.x + 28, game.player.y - 8,
+                    item_id="hollow_redeemer", quantity=1)
+    game.loot.spawn(game.player.x - 32, game.player.y + 6,
+                    item_id="ash_shard", quantity=3)
+    game.loot.spawn(game.player.x + 6, game.player.y + 30, gold=120)
+    game.loot.update(0.5)
+    _advance(game, 0.2)
+    _save(game, out, "phase6_world_loot",
+          "world drops with rarity glow and G pickup prompt")
 
 
 if __name__ == "__main__":

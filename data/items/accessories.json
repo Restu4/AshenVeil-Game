@@ -1,0 +1,68 @@
+{
+  "bone_ring": {
+    "name": "BONE RING",
+    "description": "A finger bone set in tarnished iron. It sharpens the eye.",
+    "slot": "ring",
+    "rarity": "common",
+    "icon": "ring",
+    "value": 85,
+    "level_requirement": 1,
+    "stats": {"crit_chance": 0.03},
+    "effect": {"kind": "none"}
+  },
+  "ember_ring": {
+    "name": "EMBER RING",
+    "description": "A coal trapped in silver. Its heat never fades.",
+    "slot": "ring",
+    "rarity": "uncommon",
+    "icon": "ring",
+    "value": 240,
+    "level_requirement": 3,
+    "stats": {"attack": 6},
+    "effect": {"kind": "none"}
+  },
+  "void_signet": {
+    "name": "VOID SIGNET",
+    "description": "A seal from a forgotten order. It drinks the dark.",
+    "slot": "ring",
+    "rarity": "rare",
+    "icon": "ring",
+    "value": 680,
+    "level_requirement": 5,
+    "stats": {"max_void": 18, "crit_damage": 0.10},
+    "effect": {"kind": "none"}
+  },
+  "ashen_pendant": {
+    "name": "ASHEN PENDANT",
+    "description": "A small charm of ash and bone. It steadies the heart.",
+    "slot": "necklace",
+    "rarity": "common",
+    "icon": "necklace",
+    "value": 80,
+    "level_requirement": 1,
+    "stats": {"max_hp": 10},
+    "effect": {"kind": "none"}
+  },
+  "warden_talisman": {
+    "name": "WARDEN TALISMAN",
+    "description": "A ward against the risen. Scratched, but still holding.",
+    "slot": "necklace",
+    "rarity": "uncommon",
+    "icon": "necklace",
+    "value": 220,
+    "level_requirement": 3,
+    "stats": {"defense": 5},
+    "effect": {"kind": "none"}
+  },
+  "shroud_of_dusk": {
+    "name": "SHROUD OF DUSK",
+    "description": "A chain of woven shadow. The veil leans closer to listen.",
+    "slot": "necklace",
+    "rarity": "epic",
+    "icon": "necklace",
+    "value": 1150,
+    "level_requirement": 6,
+    "stats": {"max_void": 25, "crit_chance": 0.06, "crit_damage": 0.20},
+    "effect": {"kind": "none"}
+  }
+}

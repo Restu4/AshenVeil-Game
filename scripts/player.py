@@ -26,6 +26,7 @@ from scripts.combat_config import (
 )
 from scripts.health import Health
 from scripts.hitbox import AttackHitbox
+from scripts.player_stats import BASE_ATTACK, PlayerStats
 from scripts.player_combat import (
     ATTACK_STATES,
     DASH_ATTACK,
@@ -93,6 +94,8 @@ class Player:
         self.input_y = 0.0
 
         self.level = 7
+        self.stats = PlayerStats(self.level)
+        self.equipment = None
         self.vitality = Health(PLAYER_HEALTH_MAX)
         self.combat = PlayerCombat(self)
         self.footstep_timer = 0.0
@@ -123,6 +126,34 @@ class Player:
     @property
     def dash_ready_ratio(self) -> float:
         return self.combat.dash_ready_ratio
+
+    @property
+    def walk_speed(self) -> float:
+        """Base walk speed plus equipped movement bonus."""
+        return max(20.0, self.stats.speed)
+
+    @property
+    def run_speed(self) -> float:
+        """The sprint modifier is preserved on top of equipped speed."""
+        return max(20.0, PLAYER_RUN_SPEED + self.stats.speed_bonus)
+
+    @property
+    def attack_bonus(self) -> float:
+        return self.stats.attack - BASE_ATTACK
+
+    def apply_stats(self, stats: PlayerStats) -> None:
+        """Apply a freshly recomputed stat snapshot to the live resources."""
+        self.stats = stats
+        old_max = self.vitality.maximum
+        new_max = float(stats.max_hp)
+        self.vitality.maximum = new_max
+        if new_max > old_max and self.vitality.current >= old_max - 0.01:
+            self.vitality.current = new_max
+        self.vitality.clamp()
+
+    def mitigate_damage(self, amount: float) -> float:
+        """Flat armour reduction with a floor so bosses stay dangerous."""
+        return self.stats.mitigation(amount)
 
     # ------------------------------------------------------------------
     # Combat intent (called from event handling so clicks are never lost).
@@ -237,7 +268,7 @@ class Player:
                 self._was_dashing = False
                 self._was_shadow = False
             scale = combat.movement_scale
-            speed = (PLAYER_RUN_SPEED if want_run else PLAYER_WALK_SPEED) * scale
+            speed = (self.run_speed if want_run else self.walk_speed) * scale
             target_vx = ix * speed
             target_vy = iy * speed
             if combat.state in ATTACK_STATES:
@@ -346,7 +377,7 @@ class Player:
                 self.x,
                 self.y,
                 self.facing,
-                damage=DASH_DAMAGE,
+                damage=DASH_DAMAGE + self.attack_bonus,
                 knockback=DASH_KNOCKBACK,
                 heavy=True,
                 attack_id=combat.attack_id,
@@ -363,7 +394,7 @@ class Player:
             self.x,
             self.y,
             self.facing,
-            damage=ATTACK_DAMAGE[stage - 1],
+            damage=ATTACK_DAMAGE[stage - 1] + self.attack_bonus,
             knockback=ATTACK_KNOCKBACK[stage - 1],
             heavy=ATTACK_HEAVY[stage - 1],
             attack_id=combat.attack_id,

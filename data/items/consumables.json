@@ -1,0 +1,58 @@
+{
+  "minor_health_potion": {
+    "name": "MINOR HEALTH POTION",
+    "description": "A thin red draught. Closes wounds, not memories.",
+    "slot": "consumable",
+    "category": "consumable",
+    "rarity": "common",
+    "icon": "potion_hp",
+    "value": 35,
+    "level_requirement": 1,
+    "stats": {},
+    "stackable": true,
+    "max_stack": 20,
+    "effect": {"kind": "heal", "amount": 45, "text": "RESTORE 45 HP"}
+  },
+  "void_potion": {
+    "name": "VOID POTION",
+    "description": "Dark liquid that hums against the teeth. Feeds the essence.",
+    "slot": "consumable",
+    "category": "consumable",
+    "rarity": "uncommon",
+    "icon": "potion_void",
+    "value": 55,
+    "level_requirement": 1,
+    "stats": {},
+    "stackable": true,
+    "max_stack": 20,
+    "effect": {"kind": "void", "amount": 40, "text": "RESTORE 40 VOID"}
+  },
+  "ash_shard": {
+    "name": "ASH SHARD",
+    "description": "A curled fragment of hardened ash. Traders pay for these.",
+    "slot": "material",
+    "category": "material",
+    "rarity": "common",
+    "icon": "shard",
+    "value": 12,
+    "level_requirement": 1,
+    "stats": {},
+    "stackable": true,
+    "max_stack": 99,
+    "effect": {"kind": "none"}
+  },
+  "guardian_ember": {
+    "name": "GUARDIAN EMBER",
+    "description": "A living coal from the Hollow Guardian's furnace.",
+    "slot": "material",
+    "category": "material",
+    "rarity": "epic",
+    "icon": "ember",
+    "value": 90,
+    "level_requirement": 1,
+    "stats": {},
+    "stackable": true,
+    "max_stack": 99,
+    "effect": {"kind": "none"}
+  }
+}

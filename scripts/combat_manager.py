@@ -45,7 +45,10 @@ class CombatManager:
         self.engaged_timer = 0.0
 
         # Critical hits are rolled once per enemy per swing.  Tests pin this.
+        # Both values are refreshed by EquipmentManager.recompute(); the base
+        # constants keep the unmodified character identical to earlier phases.
         self.crit_chance = CRIT_CHANCE
+        self.crit_multiplier = CRIT_MULTIPLIER
 
         # Hit stop freezes the simulation for a few frames after a connect.
         self.hit_stop = 0.0
@@ -198,7 +201,7 @@ class CombatManager:
                 continue
 
             crit = self.effects.rng.random() < self.crit_chance
-            damage = box.damage * (CRIT_MULTIPLIER if crit else 1.0)
+            damage = box.damage * (self.crit_multiplier if crit else 1.0)
             knock = box.knockback * (CRIT_KNOCKBACK_MULT if crit else 1.0)
             if box.shape == "spin":
                 # Radial heavy links push outward from the player.

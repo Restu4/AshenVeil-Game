@@ -8,7 +8,7 @@ same profile.
 from __future__ import annotations
 
 from scripts.level_config import LEVELS, get_level, level_index, next_level_id
-from scripts.save_manager import SaveManager, default_data
+from scripts.save_manager import SaveManager, canonical_data, default_data
 
 
 class ProgressionManager:
@@ -106,6 +106,16 @@ class ProgressionManager:
 
     def save_now(self) -> bool:
         return self.save.save(self.data)
+
+    def save_inventory(self, inventory, equipment) -> bool:
+        """Mirror the live inventory/equipment/gold into the shared profile."""
+        raw = inventory.to_dict()
+        raw["equipped"] = equipment.to_dict()
+        self.data["inventory"] = canonical_data({
+            "player": self.data.get("player", {}),
+            "inventory": raw,
+        })["inventory"]
+        return self.save_now()
 
     # ------------------------------------------------------------------
     def next_unplayed_level(self) -> str:

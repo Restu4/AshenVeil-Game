@@ -1,0 +1,58 @@
+{
+  "rusted_blade": {
+    "name": "RUSTED BLADE",
+    "description": "A chipped village sword. It has seen better days, but it still bites.",
+    "slot": "weapon",
+    "rarity": "common",
+    "icon": "sword",
+    "value": 40,
+    "level_requirement": 1,
+    "stats": {"attack": 5},
+    "effect": {"kind": "none"}
+  },
+  "ashfang_saber": {
+    "name": "ASHFANG SABER",
+    "description": "Quenched in ash and honed on the bones of the risen.",
+    "slot": "weapon",
+    "rarity": "uncommon",
+    "icon": "sword",
+    "value": 140,
+    "level_requirement": 3,
+    "stats": {"attack": 10, "crit_chance": 0.02},
+    "effect": {"kind": "none"}
+  },
+  "veilcleaver": {
+    "name": "VEILCLEAVER",
+    "description": "Its edge hums when the dead draw near. The veil shivers at each cut.",
+    "slot": "weapon",
+    "rarity": "rare",
+    "icon": "sword",
+    "value": 420,
+    "level_requirement": 5,
+    "stats": {"attack": 16, "crit_chance": 0.04},
+    "effect": {"kind": "none"}
+  },
+  "duskbound_greatsword": {
+    "name": "DUSKBOUND GREATSWORD",
+    "description": "A fallen knight's oath made steel. Heavy, patient and unforgiving.",
+    "slot": "weapon",
+    "rarity": "epic",
+    "icon": "greatsword",
+    "value": 1100,
+    "level_requirement": 6,
+    "stats": {"attack": 24, "crit_chance": 0.06, "crit_damage": 0.15},
+    "effect": {"kind": "none"}
+  },
+  "hollow_redeemer": {
+    "name": "HOLLOW REDEEMER",
+    "description": "Forged in the guardian's furnace. Each kill feeds its purple fire.",
+    "slot": "weapon",
+    "rarity": "legendary",
+    "icon": "greatsword",
+    "value": 3200,
+    "level_requirement": 7,
+    "stats": {"attack": 32, "crit_chance": 0.10, "crit_damage": 0.30},
+    "effect": {"kind": "void_on_kill", "amount": 4,
+               "text": "RESTORE 4 VOID ON KILL"}
+  }
+}

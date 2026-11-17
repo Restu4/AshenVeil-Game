@@ -16,12 +16,30 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
+from scripts.item_database import EQUIPMENT_SLOTS, get_item
 from settings import BASE_DIR
 
 SAVE_VERSION = 1
 SAVE_DIR = BASE_DIR / "save"
 SAVE_FILE = SAVE_DIR / "progress.json"
 LOCAL_STORAGE_KEY = "ashen_veil_progress"
+
+# A deliberately small starting kit.  The blade sits in the satchel but is not
+# pre-equipped, keeping the untouched combat tuning identical to Phase 5.
+DEFAULT_ITEMS = (
+    {"id": "rusted_blade", "qty": 1},
+    {"id": "minor_health_potion", "qty": 3},
+    {"id": "void_potion", "qty": 2},
+)
+DEFAULT_EQUIPMENT = {
+    "weapon": None,
+    "helmet": None,
+    "armor": None,
+    "gloves": None,
+    "boots": None,
+    "ring": None,
+    "necklace": None,
+}
 
 
 def default_save_file() -> Path:
@@ -30,12 +48,23 @@ def default_save_file() -> Path:
     return Path(override) if override else SAVE_FILE
 
 
+def default_inventory_data() -> dict:
+    """Fresh satchel, starting consumables and the equipped village blade."""
+    return {
+        "gold": 120,
+        "capacity": 28,
+        "items": list(deepcopy(DEFAULT_ITEMS)),
+        "equipped": dict(DEFAULT_EQUIPMENT),
+    }
+
+
 def default_data() -> dict:
     """A brand new profile: nothing completed, the player keeps their level."""
     return {
         "version": SAVE_VERSION,
         "levels": {},
         "player": {"level": 7},
+        "inventory": default_inventory_data(),
     }
 
 
@@ -44,6 +73,58 @@ def _number(value, fallback: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return fallback
+
+
+def _clean_inventory(raw, player_level: int) -> dict:
+    """Validate stored items/equipment; invalid IDs never reach the game."""
+    clean = default_inventory_data()
+    if not isinstance(raw, dict):
+        return clean
+
+    clean["gold"] = max(0, min(9_999_999, int(_number(raw.get("gold", 120), 120))))
+    clean["capacity"] = max(12, min(28, int(_number(raw.get("capacity", 28), 28))))
+
+    by_id: dict[str, int] = {}
+    records = raw.get("items")
+    if isinstance(records, (list, tuple)):
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            item_id = record.get("id")
+            item = get_item(item_id)
+            if item is None:
+                continue
+            quantity = max(1, int(_number(record.get("qty", 1), 1)))
+            if item.stackable:
+                by_id[item.item_id] = min(
+                    item.max_stack,
+                    by_id.get(item.item_id, 0) + quantity,
+                )
+            elif item.item_id not in by_id:
+                by_id[item.item_id] = 1
+            if len(by_id) >= clean["capacity"]:
+                break
+
+    equipped_raw = raw.get("equipped")
+    equipped = dict(DEFAULT_EQUIPMENT)
+    if isinstance(equipped_raw, dict):
+        for slot in EQUIPMENT_SLOTS:
+            item_id = equipped_raw.get(slot)
+            item = get_item(item_id)
+            if item is None or not item.is_equipment or item.slot != slot:
+                continue
+            if item.level_requirement > player_level:
+                continue
+            # Equipment without an owned copy would grant free stats.
+            if item.item_id not in by_id:
+                continue
+            equipped[slot] = item.item_id
+    clean["equipped"] = equipped
+    clean["items"] = [
+        {"id": item_id, "qty": quantity}
+        for item_id, quantity in by_id.items()
+    ]
+    return clean
 
 
 def canonical_data(raw) -> dict:
@@ -71,6 +152,10 @@ def canonical_data(raw) -> dict:
                 ),
             }
         data["levels"] = clean
+
+    data["inventory"] = _clean_inventory(
+        raw.get("inventory"), data["player"]["level"]
+    )
 
     version = int(_number(raw.get("version", SAVE_VERSION), SAVE_VERSION))
     data["version"] = max(1, version)
@@ -185,6 +270,7 @@ __all__ = [
     "SaveManager",
     "canonical_data",
     "default_data",
+    "default_inventory_data",
     "default_save_file",
     "load_profile",
 ]

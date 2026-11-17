@@ -1,0 +1,59 @@
+{
+  "settings": {
+    "max_drops": 24,
+    "pickup_radius": 52.0,
+    "world_lifetime": 0.0
+  },
+  "regular": {
+    "gold": {"chance": 0.58, "min": 6, "max": 20},
+    "equipment": {
+      "chance": 0.14,
+      "pool": ["rusted_blade", "ashplate_armor", "ashen_gauntlets",
+               "wayfarer_boots", "travelers_hood", "bone_ring", "ashen_pendant"]
+    },
+    "consumable": {
+      "chance": 0.26,
+      "pool": ["minor_health_potion", "void_potion"],
+      "min_quantity": 1,
+      "max_quantity": 1
+    },
+    "material": {
+      "chance": 0.22,
+      "pool": ["ash_shard"],
+      "min_quantity": 1,
+      "max_quantity": 2
+    }
+  },
+  "elite": {
+    "gold": {"chance": 1.0, "min": 48, "max": 95},
+    "equipment": {
+      "chance": 0.75,
+      "pool": ["veilcleaver", "gravesteel_plate", "voidweave_gloves",
+               "void_signet", "shroud_of_dusk", "stalker_boots"]
+    },
+    "consumable": {
+      "chance": 0.70,
+      "pool": ["minor_health_potion", "void_potion"],
+      "min_quantity": 1,
+      "max_quantity": 2
+    },
+    "material": {
+      "chance": 0.55,
+      "pool": ["ash_shard"],
+      "min_quantity": 2,
+      "max_quantity": 3
+    }
+  },
+  "boss": {
+    "gold": {"chance": 1.0, "min": 280, "max": 420},
+    "guaranteed_items": [
+      {"id": "hollow_redeemer", "quantity": 1}
+    ],
+    "material": {
+      "chance": 0.80,
+      "pool": ["guardian_ember"],
+      "min_quantity": 1,
+      "max_quantity": 1
+    }
+  }
+}

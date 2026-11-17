@@ -312,7 +312,7 @@ class PlayerCombat:
     def take_damage(self, amount: float, source_x: float, source_y: float) -> bool:
         if self.dead or self.invuln > 0.0:
             return False
-        lost = self.player.vitality.damage(amount)
+        lost = self.player.vitality.damage(self.player.mitigate_damage(amount))
         if lost <= 0.0:
             return False
         self.hurt_signal = True

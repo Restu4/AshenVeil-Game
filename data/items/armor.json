@@ -1,0 +1,112 @@
+{
+  "travelers_hood": {
+    "name": "TRAVELER HOOD",
+    "description": "A weathered hood. It keeps the ash out of your eyes.",
+    "slot": "helmet",
+    "rarity": "common",
+    "icon": "helmet",
+    "value": 60,
+    "level_requirement": 1,
+    "stats": {"max_hp": 8},
+    "effect": {"kind": "none"}
+  },
+  "wardens_helm": {
+    "name": "WARDEN HELM",
+    "description": "Iron once worn by a sentinel of the old road.",
+    "slot": "helmet",
+    "rarity": "uncommon",
+    "icon": "helmet",
+    "value": 180,
+    "level_requirement": 3,
+    "stats": {"defense": 4, "max_hp": 12},
+    "effect": {"kind": "none"}
+  },
+  "ashplate_armor": {
+    "name": "ASHPLATE ARMOR",
+    "description": "Scorched plates bound with wire. Heavy, but honest.",
+    "slot": "armor",
+    "rarity": "common",
+    "icon": "armor",
+    "value": 90,
+    "level_requirement": 1,
+    "stats": {"defense": 6},
+    "effect": {"kind": "none"}
+  },
+  "veilweave_robe": {
+    "name": "VEILWEAVE ROBE",
+    "description": "Cloth threaded with threads of the Void itself.",
+    "slot": "armor",
+    "rarity": "uncommon",
+    "icon": "robe",
+    "value": 230,
+    "level_requirement": 3,
+    "stats": {"defense": 4, "max_void": 12},
+    "effect": {"kind": "none"}
+  },
+  "gravesteel_plate": {
+    "name": "GRAVESTEEL PLATE",
+    "description": "Forged from grave iron. The dead remember its weight.",
+    "slot": "armor",
+    "rarity": "rare",
+    "icon": "armor",
+    "value": 640,
+    "level_requirement": 5,
+    "stats": {"defense": 12, "max_hp": 24},
+    "effect": {"kind": "none"}
+  },
+  "ashen_gauntlets": {
+    "name": "ASHEN GAUNTLETS",
+    "description": "Reinforced gloves for a hand that never stops swinging.",
+    "slot": "gloves",
+    "rarity": "common",
+    "icon": "gloves",
+    "value": 70,
+    "level_requirement": 1,
+    "stats": {"attack": 3},
+    "effect": {"kind": "none"}
+  },
+  "voidweave_gloves": {
+    "name": "VOIDWEAVE GLOVES",
+    "description": "Stitched with dark sinew that guides the blade.",
+    "slot": "gloves",
+    "rarity": "rare",
+    "icon": "gloves",
+    "value": 520,
+    "level_requirement": 5,
+    "stats": {"attack": 5, "crit_chance": 0.05},
+    "effect": {"kind": "none"}
+  },
+  "wayfarer_boots": {
+    "name": "WAYFARER BOOTS",
+    "description": "Broken in on a hundred roads through the ash.",
+    "slot": "boots",
+    "rarity": "common",
+    "icon": "boots",
+    "value": 65,
+    "level_requirement": 1,
+    "stats": {"speed": 8},
+    "effect": {"kind": "none"}
+  },
+  "stalker_boots": {
+    "name": "STALKER BOOTS",
+    "description": "Silent soles, favoured by those who hunt in the veil.",
+    "slot": "boots",
+    "rarity": "uncommon",
+    "icon": "boots",
+    "value": 210,
+    "level_requirement": 3,
+    "stats": {"speed": 16, "crit_chance": 0.02},
+    "effect": {"kind": "none"}
+  },
+  "guardian_greaves": {
+    "name": "GUARDIAN GREAVES",
+    "description": "Shards of the shrine warden's armour, still faintly warm.",
+    "slot": "boots",
+    "rarity": "epic",
+    "icon": "boots",
+    "value": 980,
+    "level_requirement": 6,
+    "stats": {"speed": 22, "defense": 6, "max_hp": 18},
+    "effect": {"kind": "none"}
+  }
+}

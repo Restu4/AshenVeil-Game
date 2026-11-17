@@ -68,6 +68,11 @@ class SkillManager:
     # ------------------------------------------------------------------
     def on_enemy_killed(self, _enemy=None) -> None:
         self.energy.reward_kill()
+        equipment = getattr(self.player, "equipment", None)
+        if equipment is not None:
+            bonus = equipment.void_on_kill_amount()
+            if bonus > 0.0:
+                self.energy.gain(bonus)
 
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:

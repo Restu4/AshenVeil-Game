@@ -6,6 +6,12 @@ import sys
 
 import pygame
 
+from scripts.equipment_manager import EquipmentManager
+from scripts.inventory_manager import InventoryManager
+from scripts.item_database import ITEM_DIR  # noqa: F401  (data ships with game)
+from scripts.loot_manager import LootManager
+from scripts.player_stats import PlayerStats
+
 from settings import FPS, SCREEN_H, SCREEN_W
 from scripts.asset_loader import Assets
 from scripts.atmosphere import Atmosphere
@@ -20,8 +26,10 @@ from scripts.pixel_font import draw_text
 from scripts.player import Player
 from scripts.progression_manager import ProgressionManager
 from scripts.skill_manager import SkillManager
+from scripts.ui.inventory_screen import InventoryScreen
 from scripts.ui.level_select import LevelSelect
 from scripts.ui.main_menu import MainMenu
+from scripts.ui.notifications import Notifications
 from scripts.ui.victory_screen import VictoryScreen
 from scripts.village_layout import (
     ARENA_CAMERA_LIFT,
@@ -35,6 +43,7 @@ IS_WEB = sys.platform == "emscripten"
 MENU = "MENU"
 SELECT = "SELECT"
 PLAY = "PLAY"
+INVENTORY = "INVENTORY"
 VICTORY = "VICTORY"
 
 
@@ -67,6 +76,41 @@ class Game:
         # Level 01 run (tests and tools construct Game and play immediately);
         # only main() opens the title screen.
         self.progression = ProgressionManager()
+
+        # ---- Phase 6: inventory, equipment and world loot ----------------
+        # The shared profile is the single save file; these managers only read
+        # and mirror data through ProgressionManager.
+        self.stats = PlayerStats(self.progression.player_level)
+        self.player.level = self.progression.player_level
+        self.player.stats = self.stats
+        self.notifications = Notifications()
+        self.inventory = InventoryManager()
+        self.equipment = EquipmentManager(self.player, self.stats,
+                                          notify=self.notify)
+        self.player.equipment = self.equipment
+        saved_inventory = self.progression.data.get("inventory", {})
+        self.inventory.load(saved_inventory)
+        self.equipment.load(saved_inventory.get("equipped", {}))
+        self.inventory.attach(player=self.player, skills=self.skills,
+                              notify=self.notify,
+                              on_change=self._save_inventory)
+        self.equipment.attach(skills=self.skills, combat=self.combat,
+                              notify=self.notify)
+        self.loot = LootManager(self.world, notify=self.notify)
+        self.inventory_screen = InventoryScreen(
+            self.player, self.inventory, self.equipment, self.stats,
+            self.skills, notify=self.notify, on_drop=self._drop_to_world,
+        )
+        # Loot must not replace the Void skill kill reward.
+        _skill_kill = self.combat.on_kill
+
+        def _on_kill(enemy) -> None:
+            if callable(_skill_kill):
+                _skill_kill(enemy)
+            self.loot.on_enemy_killed(enemy)
+
+        self.combat.on_kill = _on_kill
+
         self.level = LevelManager(
             self.assets, self.world, self.player, self.combat, self.camera,
             self.effects, self.skills, self.progression,
@@ -114,6 +158,8 @@ class Game:
     def start_level(self, level_id: str) -> bool:
         if not self.level.begin_level(level_id):
             return False
+        self.loot.clear()
+        self.notifications.clear()
         self.state = PLAY
         self._hide_mouse()
         return True
@@ -136,6 +182,33 @@ class Game:
     def _hide_mouse() -> None:
         if not IS_WEB:
             pygame.mouse.set_visible(False)
+
+    # ------------------------------------------------------------------
+    # Inventory / loot helpers
+    # ------------------------------------------------------------------
+    def notify(self, text: str) -> None:
+        self.notifications.push(str(text))
+
+    def _save_inventory(self) -> None:
+        self.progression.save_inventory(self.inventory, self.equipment)
+
+    def _drop_to_world(self, item_id: str, quantity: int) -> None:
+        self.loot.spawn(self.player.x, self.player.y + 12,
+                        item_id=item_id, quantity=quantity)
+
+    def open_inventory(self) -> None:
+        if self.state != PLAY or self.player.combat.dead:
+            return
+        self.state = INVENTORY
+        self.inventory_screen.open()
+        self._show_mouse()
+
+    def close_inventory(self) -> None:
+        if self.state != INVENTORY:
+            return
+        self.state = PLAY
+        self.inventory_screen.confirm_drop = False
+        self._hide_mouse()
 
     # ------------------------------------------------------------------
     def _ui_event(self, event: pygame.event.Event) -> pygame.event.Event:
@@ -192,6 +265,12 @@ class Game:
                 self.start_level(action[1])
             return
 
+        if self.state == INVENTORY:
+            action = self.inventory_screen.handle_event(self._ui_event(event))
+            if action == "close":
+                self.close_inventory()
+            return
+
         if self.state == VICTORY:
             action = self.victory.handle_event(self._ui_event(event))
             if action == "continue":
@@ -219,6 +298,12 @@ class Game:
                                    pygame.K_SPACE):
                     self.restart()
                 return
+            if event.key == pygame.K_i:
+                self.open_inventory()
+                return
+            if event.key == pygame.K_g:
+                self.loot.try_pickup(self.player, self.inventory)
+                return
             if event.key == pygame.K_ESCAPE and not IS_WEB:
                 self.running = False
             elif event.key == pygame.K_SPACE:
@@ -242,6 +327,8 @@ class Game:
     # ------------------------------------------------------------------
     def restart(self) -> None:
         self.player.reset(SPAWN[0], SPAWN[1], SPAWN_FACING)
+        self.loot.clear()
+        self.notifications.clear()
         self.combat.restart()
         self.skills.reset()
         self.effects.clear()
@@ -253,6 +340,11 @@ class Game:
 
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
+        self.notifications.update(dt)
+        if self.state == INVENTORY:
+            # Gameplay is fully frozen while the satchel is open.
+            self.inventory_screen.update(dt)
+            return
         if self.state in (MENU, SELECT, VICTORY):
             screen = (self.menu if self.state == MENU else
                       self.level_select if self.state == SELECT else
@@ -278,6 +370,7 @@ class Game:
         else:
             self.level.update(dt)
 
+        self.loot.update(sim_dt)
         look_x, look_y = self.player.look
         focus_y = self.player.y
         if self.level.boss.active:
@@ -294,16 +387,31 @@ class Game:
         if self.state == MENU:
             self._draw_world()
             self.menu.draw(self.canvas, self.assets)
+            self.notifications.draw(self.canvas)
             return
         if self.state == SELECT:
             self._draw_world()
             self.level_select.draw(self.canvas)
+            self.notifications.draw(self.canvas)
             return
         if self.state == VICTORY:
             self._draw_world()
             self.effects.draw_world(self.canvas, self.camera)
             self.combat.draw_projectiles(self.canvas, self.camera)
             self.victory.draw(self.canvas)
+            self.notifications.draw(self.canvas)
+            return
+        if self.state == INVENTORY:
+            self._draw_world()
+            self.level.draw_world_overlay(self.canvas, self.camera)
+            self.skills.draw_world(self.canvas, self.camera)
+            self.effects.draw_world(self.canvas, self.camera)
+            self.combat.draw_projectiles(self.canvas, self.camera)
+            self.loot.draw(self.canvas, self.camera)
+            self.hud.draw(self.canvas, self.player, self.combat, self.camera,
+                          self.skills, stage=self.level, boss=self.level.boss)
+            self.inventory_screen.draw(self.canvas)
+            self.notifications.draw(self.canvas)
             return
 
         # ---- PLAY ----------------------------------------------------
@@ -312,10 +420,13 @@ class Game:
         self.skills.draw_world(self.canvas, self.camera)
         self.effects.draw_world(self.canvas, self.camera)
         self.combat.draw_projectiles(self.canvas, self.camera)
+        self.loot.draw(self.canvas, self.camera)
         self.skills.draw_overlay(self.canvas)
         self.effects.draw_overlay(self.canvas, self.camera)
         self.hud.draw(self.canvas, self.player, self.combat, self.camera,
                       self.skills, stage=self.level, boss=self.level.boss)
+        self.loot.draw_prompt(self.canvas, self.player, self.camera)
+        self.notifications.draw(self.canvas)
         self.level.draw_overlay(self.canvas)
         if self.debug:
             self.world.debug_draw(self.canvas, self.camera, self.player)
@@ -352,6 +463,11 @@ class Game:
                       24, 192, 1, (188, 148, 255), spacing=1)
             draw_text(self.canvas, "F1 DEBUG  H HINTS", 24, 204, 1,
                       (112, 255, 145), spacing=1)
+            draw_text(self.canvas,
+                      f"GOLD {self.inventory.gold}  ITEMS "
+                      f"{self.inventory.used}/{self.inventory.capacity}  "
+                      f"DROPS {len(self.loot.drops)}",
+                      24, 216, 1, (112, 255, 145), spacing=1)
 
     def _draw_world(self) -> None:
         self.world.draw(self.canvas, self.camera, self.player,
