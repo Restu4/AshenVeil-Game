@@ -22,6 +22,13 @@ from scripts.skill_config import (
 from scripts.skills.base import VoidSlashSkill
 
 
+def slash_damage(manager) -> float:
+    mods = getattr(manager, "mods", None)
+    if mods is None:
+        return SLASH_DAMAGE
+    return SLASH_DAMAGE * mods.slash_damage * mods.void_power
+
+
 class VoidSlash(VoidSlashSkill):
     def __init__(self) -> None:
         super().__init__()
@@ -78,7 +85,7 @@ class VoidSlash(VoidSlashSkill):
                     continue
                 lost, _killed = manager.combat.damage_enemy(
                     enemy,
-                    SLASH_DAMAGE,
+                    slash_damage(manager),
                     wave["x"],
                     wave["y"],
                     SLASH_KNOCKBACK,

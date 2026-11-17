@@ -74,6 +74,7 @@ def main() -> None:
     skill_shots(game, out)
     phase5_shots(game, out)
     phase6_shots(game, out)
+    phase7_shots(game, out)
     shutil.rmtree(_PREVIEW_SAVE_DIR, ignore_errors=True)
     pygame.quit()
 
@@ -403,6 +404,12 @@ def phase6_shots(game, out: Path) -> None:
     game.loot.clear()
     game.inventory_screen.reveal = 1.0
     game.inventory_screen.time = 2.0
+    # Phase 7 starts at level 1; these legacy gear previews need an explicit
+    # level-7 character so their level-gated items still appear equipped.
+    game.exp.level = 7
+    game.player.level = 7
+    game.progression.record_player_level(7)
+    game.equipment.refresh_level()
 
     # Build a representative loadout: a full set of equipped gear plus a
     # satchel spanning every rarity, with visible stack quantities.
@@ -459,6 +466,56 @@ def phase6_shots(game, out: Path) -> None:
     _advance(game, 0.2)
     _save(game, out, "phase6_world_loot",
           "world drops with rarity glow and G pickup prompt")
+
+
+def phase7_shots(game, out: Path) -> None:
+    """Character sheet, skill tree and level-up feedback for Phase 7."""
+    from main import PLAY
+
+    game.start_level("01")
+    game.state = PLAY
+    game.hud.time = 9.0
+    game.level.banner_timer = 0.0
+    game.loot.clear()
+    game.equipment.clear()
+    game.inventory.entries.clear()
+    _idle_player(game, 1660.0, 1210.0, "up")
+
+    # Build a level-12 wanderer with a representative spread of attributes and
+    # several purchased nodes across all three branches.
+    game.exp.award_exp(4000)
+    for attribute in ("str", "str", "vit", "vit", "agi", "int", "int"):
+        game.exp.allocate_attribute(attribute)
+    for node_id in ("a1", "a2", "a3", "b1", "b2", "b3", "c1", "c2"):
+        game.tree.purchase(node_id)
+    game.tree.apply(skills=game.skills, combat=game.combat, player=game.player)
+    game.inventory.add("ashfang_saber", 1)
+    game.equipment.equip("ashfang_saber")
+
+    # Shot 1: character status with the real sprite, EXP bar and attributes.
+    game.open_character()
+    game.character_screen.reveal = 1.0
+    _save(game, out, "phase7_character",
+          "portrait, level, EXP, attributes and derived stats")
+
+    # Shot 2: the three-branch Void skill tree with owned and locked nodes.
+    game.close_character()
+    game.open_skill_tree()
+    game.tree_screen.reveal = 1.0
+    _save(game, out, "phase7_skill_tree",
+          "three branches with owned, available and locked nodes")
+
+    # Shot 3: the level-up beat, with the burst effect and toast on screen.
+    game.close_skill_tree()
+    game.effects.clear()
+    game.notifications.items.clear()
+    game.exp.award_exp(90)
+    game.player.animator.current_name = "idle_up"
+    game.player.animator.current = game.player.animator.animations[
+        "idle_up"
+    ]
+    _save(game, out, "phase7_level_up",
+          "level-up burst, hit stop and polished notification")
 
 
 if __name__ == "__main__":

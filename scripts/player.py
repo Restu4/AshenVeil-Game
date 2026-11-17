@@ -38,6 +38,7 @@ from scripts.player_combat import (
     PlayerCombat,
 )
 from scripts.skill_config import SHADOW_DURATION, SHADOW_SPEED
+from scripts.progression_config import START_LEVEL
 from scripts.animation import CharacterAnimator
 from scripts.collision import CollisionWorld
 from settings import (
@@ -93,7 +94,7 @@ class Player:
         self.input_x = 0.0
         self.input_y = 0.0
 
-        self.level = 7
+        self.level = START_LEVEL
         self.stats = PlayerStats(self.level)
         self.equipment = None
         self.vitality = Health(PLAYER_HEALTH_MAX)
@@ -230,7 +231,8 @@ class Player:
         self.running = want_run
 
         if combat.dodging:
-            progress = 1.0 - max(0.0, combat.dodge_time) / DODGE_DURATION
+            dodge_total = max(0.01, getattr(combat, "dodge_total", DODGE_DURATION))
+            progress = 1.0 - max(0.0, combat.dodge_time) / dodge_total
             speed = DODGE_SPEED * (0.66 + 0.34 * progress)
             self.vx = combat.dodge_x * speed
             self.vy = combat.dodge_y * speed
@@ -240,7 +242,8 @@ class Player:
             self._was_shadow = False
         elif combat.shadow_step:
             progress = 1.0 - max(0.0, combat.shadow_time) / SHADOW_DURATION
-            speed = SHADOW_SPEED * (0.86 + 0.14 * progress)
+            shadow_mult = getattr(combat, "shadow_speed_mult", 1.0)
+            speed = SHADOW_SPEED * shadow_mult * (0.86 + 0.14 * progress)
             self.vx = combat.shadow_x * speed
             self.vy = combat.shadow_y * speed
             self._move(dt, collision)
@@ -268,7 +271,10 @@ class Player:
                 self._was_dashing = False
                 self._was_shadow = False
             scale = combat.movement_scale
-            speed = (self.run_speed if want_run else self.walk_speed) * scale
+            surge = 1.0
+            if getattr(combat, "speed_surge_timer", 0.0) > 0.0:
+                surge += getattr(combat, "speed_surge_mult", 0.0)
+            speed = (self.run_speed if want_run else self.walk_speed) * scale * surge
             target_vx = ix * speed
             target_vy = iy * speed
             if combat.state in ATTACK_STATES:

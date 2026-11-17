@@ -17,6 +17,18 @@ from scripts.skill_config import (
 from scripts.skills.base import EclipseSkill
 
 
+def eclipse_radius(manager) -> float:
+    mods = getattr(manager, "mods", None)
+    return ECLIPSE_RADIUS * (mods.eclipse_radius if mods is not None else 1.0)
+
+
+def eclipse_damage(manager) -> float:
+    mods = getattr(manager, "mods", None)
+    if mods is None:
+        return ECLIPSE_DAMAGE
+    return ECLIPSE_DAMAGE * mods.eclipse_damage * mods.void_power
+
+
 class Eclipse(EclipseSkill):
     def __init__(self) -> None:
         super().__init__()
@@ -48,7 +60,9 @@ class Eclipse(EclipseSkill):
         x, y = player.x, player.y
         self.pending = {"x": x, "y": y, "timer": ECLIPSE_WINDUP, "hit": set()}
         self._mote_timer = 0.0
-        manager.skill_effects.begin_eclipse(x, y, ECLIPSE_WINDUP, ECLIPSE_RADIUS)
+        manager.skill_effects.begin_eclipse(
+            x, y, ECLIPSE_WINDUP, eclipse_radius(manager)
+        )
         manager.camera.shake(2.0, 0.12)
         return True
 
@@ -62,7 +76,7 @@ class Eclipse(EclipseSkill):
         if self._mote_timer <= 0.0:
             self._mote_timer = 0.045
             manager.skill_effects.spawn_eclipse_mote(
-                pending["x"], pending["y"], ECLIPSE_RADIUS
+                pending["x"], pending["y"], eclipse_radius(manager)
             )
         if pending["timer"] > 0.0:
             return
@@ -72,13 +86,13 @@ class Eclipse(EclipseSkill):
         manager.combat.damage_area(
             x,
             y,
-            ECLIPSE_RADIUS,
-            ECLIPSE_DAMAGE,
+            eclipse_radius(manager),
+            eclipse_damage(manager),
             ECLIPSE_KNOCKBACK,
             heavy=True,
         )
         manager.combat.add_hit_stop(ECLIPSE_HIT_STOP)
-        manager.skill_effects.detonate_eclipse(x, y, ECLIPSE_RADIUS)
+        manager.skill_effects.detonate_eclipse(x, y, eclipse_radius(manager))
         manager.camera.shake(ECLIPSE_SHAKE, 0.30)
         manager.combat.effects.spawn_flash((22, 12, 38), 0.18)
 

@@ -7,10 +7,17 @@ import sys
 import pygame
 
 from scripts.equipment_manager import EquipmentManager
+from scripts.exp_manager import ExpManager
 from scripts.inventory_manager import InventoryManager
 from scripts.item_database import ITEM_DIR  # noqa: F401  (data ships with game)
 from scripts.loot_manager import LootManager
 from scripts.player_stats import PlayerStats
+from scripts.progression_config import (
+    LEVEL_UP_HIT_STOP,
+    LEVEL_UP_SURGE_MULT,
+    LEVEL_UP_SURGE_TIME,
+)
+from scripts.skill_tree_manager import SkillTreeManager
 
 from settings import FPS, SCREEN_H, SCREEN_W
 from scripts.asset_loader import Assets
@@ -26,10 +33,12 @@ from scripts.pixel_font import draw_text
 from scripts.player import Player
 from scripts.progression_manager import ProgressionManager
 from scripts.skill_manager import SkillManager
+from scripts.ui.character_screen import CharacterScreen
 from scripts.ui.inventory_screen import InventoryScreen
 from scripts.ui.level_select import LevelSelect
 from scripts.ui.main_menu import MainMenu
 from scripts.ui.notifications import Notifications
+from scripts.ui.skill_tree_screen import SkillTreeScreen
 from scripts.ui.victory_screen import VictoryScreen
 from scripts.village_layout import (
     ARENA_CAMERA_LIFT,
@@ -44,6 +53,8 @@ MENU = "MENU"
 SELECT = "SELECT"
 PLAY = "PLAY"
 INVENTORY = "INVENTORY"
+CHARACTER = "CHARACTER"
+SKILL_TREE = "SKILL_TREE"
 VICTORY = "VICTORY"
 
 
@@ -77,11 +88,20 @@ class Game:
         # only main() opens the title screen.
         self.progression = ProgressionManager()
 
+        # ---- Phase 7: one authority for level, attributes and skill nodes --
+        self.exp = ExpManager(
+            self.progression.data,
+            on_change=self._refresh_progression,
+            on_level_up=self._on_level_up,
+        )
+        self.tree = SkillTreeManager(self.exp)
+
         # ---- Phase 6: inventory, equipment and world loot ----------------
         # The shared profile is the single save file; these managers only read
         # and mirror data through ProgressionManager.
-        self.stats = PlayerStats(self.progression.player_level)
-        self.player.level = self.progression.player_level
+        self.stats = PlayerStats(self.exp.level)
+        self.stats.set_attributes(self.exp.attributes)
+        self.player.level = self.exp.level
         self.player.stats = self.stats
         self.notifications = Notifications()
         self.inventory = InventoryManager()
@@ -96,11 +116,20 @@ class Game:
                               on_change=self._save_inventory)
         self.equipment.attach(skills=self.skills, combat=self.combat,
                               notify=self.notify)
+        # Push saved attributes and purchased nodes into every live system.
+        self.tree.apply(skills=self.skills, combat=self.combat,
+                        player=self.player)
         self.loot = LootManager(self.world, notify=self.notify)
         self.inventory_screen = InventoryScreen(
             self.player, self.inventory, self.equipment, self.stats,
             self.skills, notify=self.notify, on_drop=self._drop_to_world,
         )
+        self.character_screen = CharacterScreen(
+            self.player, self.exp, self.stats, self.equipment,
+            notify=self.notify,
+        )
+        self.tree_screen = SkillTreeScreen(self.player, self.tree,
+                                           notify=self.notify)
         # Loot must not replace the Void skill kill reward.
         _skill_kill = self.combat.on_kill
 
@@ -108,6 +137,9 @@ class Game:
             if callable(_skill_kill):
                 _skill_kill(enemy)
             self.loot.on_enemy_killed(enemy)
+            self.exp.award_enemy_kill(
+                enemy, getattr(self.level, "level_id", "")
+            )
 
         self.combat.on_kill = _on_kill
 
@@ -192,6 +224,53 @@ class Game:
     def _save_inventory(self) -> None:
         self.progression.save_inventory(self.inventory, self.equipment)
 
+    def _save_progression(self) -> None:
+        self.progression.save_progression(self.exp)
+
+    def _refresh_progression(self) -> None:
+        """Persist and immediately apply every progression change to live stats."""
+        self._save_progression()
+        self.player.level = self.exp.level
+        self.stats.level = self.exp.level
+        self.stats.set_attributes(self.exp.attributes)
+        self.equipment.recompute()
+        if hasattr(self, "tree"):
+            self.tree.apply(skills=self.skills, combat=self.combat,
+                            player=self.player)
+
+    # ------------------------------------------------------------------
+    # Level-up feedback: short pause, notification, effect and optional sound
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _level_up_sound() -> None:
+        """Play a bundled cue only when an audio asset actually ships."""
+        try:
+            from settings import ASSETS
+            for name in ("level_up.wav", "level_up.ogg"):
+                cue = ASSETS / "audio" / name
+                if cue.is_file():
+                    pygame.mixer.music.load(str(cue))
+                    pygame.mixer.music.play(loops=0)
+                    return
+        except Exception:
+            pass
+
+    def _on_level_up(self, event: dict) -> None:
+        level = int(event.get("level", self.exp.level))
+        self._refresh_progression()
+
+        # A fraction of a second of hit stop, a burst and two short toasts.
+        self.combat.add_hit_stop(LEVEL_UP_HIT_STOP)
+        self.effects.spawn_level_up(self.player.x, self.player.y)
+        combat = self.player.combat
+        combat.speed_surge_mult = max(combat.speed_surge_mult,
+                                      LEVEL_UP_SURGE_MULT)
+        combat.speed_surge_timer = LEVEL_UP_SURGE_TIME
+        self._level_up_sound()
+        self.notify(f"LEVEL UP  {level}   +{event.get('attribute_points', 0)} POINTS")
+        if event.get("skill_points", 0):
+            self.notify(f"+{event['skill_points']} SKILL POINT")
+
     def _drop_to_world(self, item_id: str, quantity: int) -> None:
         self.loot.spawn(self.player.x, self.player.y + 12,
                         item_id=item_id, quantity=quantity)
@@ -208,6 +287,33 @@ class Game:
             return
         self.state = PLAY
         self.inventory_screen.confirm_drop = False
+        self._hide_mouse()
+
+    def open_character(self) -> None:
+        if self.state != PLAY or self.player.combat.dead:
+            return
+        self.state = CHARACTER
+        self.character_screen.open()
+        self._show_mouse()
+
+    def close_character(self) -> None:
+        if self.state != CHARACTER:
+            return
+        self.state = PLAY
+        self.character_screen.confirm_reset = False
+        self._hide_mouse()
+
+    def open_skill_tree(self) -> None:
+        if self.state != PLAY or self.player.combat.dead:
+            return
+        self.state = SKILL_TREE
+        self.tree_screen.open()
+        self._show_mouse()
+
+    def close_skill_tree(self) -> None:
+        if self.state != SKILL_TREE:
+            return
+        self.state = PLAY
         self._hide_mouse()
 
     # ------------------------------------------------------------------
@@ -271,6 +377,18 @@ class Game:
                 self.close_inventory()
             return
 
+        if self.state == CHARACTER:
+            action = self.character_screen.handle_event(self._ui_event(event))
+            if action == "close":
+                self.close_character()
+            return
+
+        if self.state == SKILL_TREE:
+            action = self.tree_screen.handle_event(self._ui_event(event))
+            if action == "close":
+                self.close_skill_tree()
+            return
+
         if self.state == VICTORY:
             action = self.victory.handle_event(self._ui_event(event))
             if action == "continue":
@@ -300,6 +418,12 @@ class Game:
                 return
             if event.key == pygame.K_i:
                 self.open_inventory()
+                return
+            if event.key == pygame.K_p:
+                self.open_character()
+                return
+            if event.key == pygame.K_t:
+                self.open_skill_tree()
                 return
             if event.key == pygame.K_g:
                 self.loot.try_pickup(self.player, self.inventory)
@@ -341,9 +465,14 @@ class Game:
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
         self.notifications.update(dt)
-        if self.state == INVENTORY:
-            # Gameplay is fully frozen while the satchel is open.
-            self.inventory_screen.update(dt)
+        if self.state in (INVENTORY, CHARACTER, SKILL_TREE):
+            # Gameplay is fully frozen while any character overlay is open.
+            screen = (
+                self.inventory_screen if self.state == INVENTORY else
+                self.character_screen if self.state == CHARACTER else
+                self.tree_screen
+            )
+            screen.update(dt)
             return
         if self.state in (MENU, SELECT, VICTORY):
             screen = (self.menu if self.state == MENU else
@@ -401,7 +530,7 @@ class Game:
             self.victory.draw(self.canvas)
             self.notifications.draw(self.canvas)
             return
-        if self.state == INVENTORY:
+        if self.state in (INVENTORY, CHARACTER, SKILL_TREE):
             self._draw_world()
             self.level.draw_world_overlay(self.canvas, self.camera)
             self.skills.draw_world(self.canvas, self.camera)
@@ -409,8 +538,14 @@ class Game:
             self.combat.draw_projectiles(self.canvas, self.camera)
             self.loot.draw(self.canvas, self.camera)
             self.hud.draw(self.canvas, self.player, self.combat, self.camera,
-                          self.skills, stage=self.level, boss=self.level.boss)
-            self.inventory_screen.draw(self.canvas)
+                          self.skills, stage=self.level, boss=self.level.boss,
+                          exp=self.exp)
+            if self.state == INVENTORY:
+                self.inventory_screen.draw(self.canvas)
+            elif self.state == CHARACTER:
+                self.character_screen.draw(self.canvas)
+            else:
+                self.tree_screen.draw(self.canvas)
             self.notifications.draw(self.canvas)
             return
 
@@ -424,7 +559,8 @@ class Game:
         self.skills.draw_overlay(self.canvas)
         self.effects.draw_overlay(self.canvas, self.camera)
         self.hud.draw(self.canvas, self.player, self.combat, self.camera,
-                      self.skills, stage=self.level, boss=self.level.boss)
+                      self.skills, stage=self.level, boss=self.level.boss,
+                      exp=self.exp)
         self.loot.draw_prompt(self.canvas, self.player, self.camera)
         self.notifications.draw(self.canvas)
         self.level.draw_overlay(self.canvas)
@@ -468,6 +604,13 @@ class Game:
                       f"{self.inventory.used}/{self.inventory.capacity}  "
                       f"DROPS {len(self.loot.drops)}",
                       24, 216, 1, (112, 255, 145), spacing=1)
+
+            draw_text(self.canvas,
+                      f"LV {self.exp.level}  EXP {self.exp.exp}"
+                      f"/{self.exp.exp_required}  AP {self.exp.attribute_points}"
+                      f"  SP {self.exp.skill_points}  MARKED "
+                      f"{len(self.exp.defeated)}",
+                      24, 228, 1, (188, 148, 255), spacing=1)
 
     def _draw_world(self) -> None:
         self.world.draw(self.canvas, self.camera, self.player,

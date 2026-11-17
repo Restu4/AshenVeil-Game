@@ -14,8 +14,12 @@ abandoned village, along the corrupted western path and through the forgotten
 shrine, into a sealed arena where **THE HOLLOW GUARDIAN** waits. Beating the
 guardian opens a victory screen and unlocks Level 02 in a small JSON profile.
 Levels 02–04 are fully authored selection entries with previews, lore and lock
-states, but their maps are deliberately not forged yet. There is still no
-inventory or quest system.
+states, but their maps are deliberately not forged yet.
+
+**Phase 7** adds character progression on top of the Phase 6 inventory,
+equipment and loot layer: EXP and levels, four attributes, a three-branch Void
+skill tree, add-on save fields and two full-screen character overlays. The
+original combat, enemies, boss, stage flow and Q/E/R/F bindings stay intact.
 
 The playable character uses the original ASHEN VEIL spritesheet (hooded figure,
 black face, single white eye, large back sword, cape and sandals). The village
@@ -48,12 +52,23 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
   a crimson danger band; it exists only during the encounter and disappears the
   instant the guardian dies. A compact 300×42 stage panel sits under the
   vitality bars with stage number, objective, remaining foes / gate distance,
-  four pips and a short stage banner.
+  four pips and a short stage banner. A 172×3 EXP strip at `20,63` shows the
+  current level's progress without moving any earlier bar.
 - **Persistent progression** — completion, boss kill and stages cleared are
   written to `save/progress.json` (and mirrored to browser `localStorage`). A
   completed Level 01 permanently unlocks Level 02 in the select screen; player
   level is preserved independently across runs. Missing, truncated or
   wrong-shaped saves fall back to a clean profile without crashing.
+- **Loot, inventory and equipment** — enemies and bosses drop rolled gear into
+  the world (`G` to pick up); `I` opens the seven-slot satchel with rarity
+  borders, item details, consumables, gold and level-gated equipment. Equipped
+  bonuses feed the real attack, defense, speed, critical and resource numbers.
+- **Character progression** — one `ExpManager` owns level 1–30, EXP, four
+  attributes, points and per-enemy kill markers. `P` opens **THE WANDERER**
+  sheet (real sprite portrait, EXP bar, attribute allocation and derived
+  stats); `T` opens the three-branch **VOID SKILL TREE**. Every reward, grant,
+  attribute scaling, node effect and level-up value is configurable in
+  `scripts/progression_config.py` and `scripts/skill_tree_config.py`.
 - **Victory flow** — the guardian's death animation plays, every attack and
   hazard stops, and after a short beat the victory screen offers **CONTINUE**
   (preselects the newly unlocked Level 02) and **RETURN TO LEVEL SELECT**
@@ -163,6 +178,10 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
 | `R` | VOID SLASH — travelling purple crescent |
 | `F` | ECLIPSE — wind-up ultimate |
 | `Shift` | Run (unrestricted) |
+| `G` | Pick up a nearby world drop |
+| `I` | Open / close the inventory and equipment screen |
+| `P` | Open / close the character sheet and spend attribute points |
+| `T` | Open / close the Void skill tree and unlock nodes |
 | `Enter` / `Space` / click | Rise again after death |
 | `H` | Toggle control hints |
 | `F1` / `F3` | Toggle debug overlay |
@@ -184,6 +203,33 @@ the four cards. Level select responds to arrows, `1`–`4`, mouse hover/click an
 left/right (or Tab) to switch between `CONTINUE` and `RETURN TO LEVEL SELECT`
 and `Enter` to confirm. Restarting after death always returns to Level 01
 stage 1 at the village spawn; progression is never erased.
+
+## Character progression
+
+A new profile starts at **level 1** and caps at **level 30**. The EXP needed to
+advance from level `L` to `L+1` is `round(60 * 1.13 ** (L - 1))` — 60 at level
+1, 68 at level 2, 77 at level 3. Kill rewards are configurable: regular 20,
+strong (Fallen Knight) 40, elite (Corrupted Warden / `ELITE` subtitle) 100 and
+boss 500. Each defeated enemy is marked once as `<level>:<id>` (bosses use
+`<level>:boss`), so reloading or re-entering a level cannot farm the same kill.
+Future quests can call `ExpManager.award_quest_exp()`.
+
+Every level grants **3 attribute points**; every two levels grant **1 skill
+point**. Reaching level 30 therefore yields 87 attribute and 14 skill points.
+Attributes are real simulation values: **STR** +2 attack, **VIT** +12 maximum
+HP, **AGI** +2 speed and +1% critical chance, **INT** +4 maximum Void and +2%
+Void skill power per rank (maximum rank 10). The sheet's *Reset Points* button
+refunds allocations with a confirmation click.
+
+The skill tree has twelve one-point nodes in three branches: **Void Offense**
+(burst/slash damage, critical damage, elite damage), **Shadow Mobility**
+(Shadow Step cooldown and distance, dodge recovery and post-dodge speed) and
+**Eclipse Mastery** (Eclipse damage and radius, Void regeneration, reduced skill
+cost). Nodes have level and prerequisite gates and only change values used by
+the existing `Q`/`E`/`R`/`F` skills; no new active ability is created. Purchased
+nodes, attributes, points, EXP and kill markers are added to the same JSON
+profile with additive validation, so old saves and the browser `localStorage`
+mirror (`ashen_veil_progress`) keep working.
 
 ## Combat tuning
 

@@ -20,6 +20,19 @@ from scripts.item_database import (
     STAT_LABELS,
     ItemDef,
 )
+from scripts.progression_config import (
+    AGI_CRIT_PER_POINT,
+    AGI_SPEED_PER_POINT,
+    ATTRIBUTE_KEYS,
+    INT_VOID_PER_POINT,
+    INT_VOID_POWER_PER_POINT,
+    MAX_ATTRIBUTE_RANK,
+    MAX_LEVEL,
+    START_LEVEL,
+    STR_ATTACK_PER_POINT,
+    VIT_HP_PER_POINT,
+    clamp_int,
+)
 from settings import PLAYER_WALK_SPEED
 
 BASE_ATTACK = float(ATTACK_DAMAGE[0])
@@ -39,21 +52,40 @@ class PlayerStats:
     """A recomputable snapshot of the equipped character."""
 
     __slots__ = ("level", "attack", "defense", "max_hp", "speed",
-                 "crit_chance", "crit_damage", "max_void")
+                 "crit_chance", "crit_damage", "max_void", "attributes",
+                 "void_power")
 
-    def __init__(self, level: int = 7) -> None:
-        self.level = max(1, min(99, int(level)))
+    def __init__(self, level: int = START_LEVEL) -> None:
+        self.level = max(START_LEVEL, min(MAX_LEVEL, int(level)))
+        self.attributes: dict[str, int] = {key: 0 for key in ATTRIBUTE_KEYS}
+        self.void_power = 1.0
         self.reset()
 
     def reset(self) -> None:
-        """Restore untouched base statistics before equipment is applied."""
-        self.attack = BASE_ATTACK
+        """Restore base statistics plus attributes, before equipment is added."""
+        strength = self.attributes.get("str", 0)
+        vitality = self.attributes.get("vit", 0)
+        agility = self.attributes.get("agi", 0)
+        intellect = self.attributes.get("int", 0)
+
+        self.attack = BASE_ATTACK + strength * STR_ATTACK_PER_POINT
         self.defense = BASE_DEFENSE
-        self.max_hp = BASE_MAX_HP
-        self.speed = BASE_SPEED
-        self.crit_chance = BASE_CRIT_CHANCE
+        self.max_hp = BASE_MAX_HP + vitality * VIT_HP_PER_POINT
+        self.speed = BASE_SPEED + agility * AGI_SPEED_PER_POINT
+        self.crit_chance = BASE_CRIT_CHANCE + agility * AGI_CRIT_PER_POINT
         self.crit_damage = BASE_CRIT_DAMAGE
-        self.max_void = BASE_MAX_VOID
+        self.max_void = BASE_MAX_VOID + intellect * INT_VOID_PER_POINT
+        self.void_power = 1.0 + intellect * INT_VOID_POWER_PER_POINT
+
+    def set_attributes(self, values: dict | None) -> None:
+        """Replace allocated attributes, then let the caller recompute gear."""
+        for key in ATTRIBUTE_KEYS:
+            raw = values.get(key, 0) if isinstance(values, dict) else 0
+            self.attributes[key] = clamp_int(
+                raw, 0, MAX_ATTRIBUTE_RANK, 0
+            )
+        self.reset()
+        self.clamp()
 
     def apply(self, item: ItemDef) -> None:
         """Add one item's bonuses to the current snapshot."""
@@ -63,7 +95,7 @@ class PlayerStats:
         self.clamp()
 
     def clamp(self) -> None:
-        self.level = max(1, min(99, int(self.level)))
+        self.level = max(START_LEVEL, min(MAX_LEVEL, int(self.level)))
         self.attack = max(0.0, self.attack)
         self.defense = max(0.0, self.defense)
         self.max_hp = max(1.0, self.max_hp)
@@ -71,6 +103,7 @@ class PlayerStats:
         self.crit_chance = max(0.0, min(1.0, self.crit_chance))
         self.crit_damage = max(1.0, min(10.0, self.crit_damage))
         self.max_void = max(1.0, self.max_void)
+        self.void_power = max(1.0, min(10.0, self.void_power))
 
     @property
     def attack_bonus(self) -> float:
@@ -130,14 +163,14 @@ def compare_stats(item: ItemDef, stats: PlayerStats) -> list[tuple[str, float]]:
         value = item.stats.get(key, 0.0)
         if not value:
             continue
-        delta = value - (stats.value(key) - _base_value(key))
+        delta = value - (stats.value(key) - _base_value(key, stats))
         if abs(delta) > 1e-9:
             result.append((key, delta))
     return result
 
 
-def _base_value(key: str) -> float:
-    return {
+def _base_value(key: str, stats: "PlayerStats | None" = None) -> float:
+    base = {
         "attack": BASE_ATTACK,
         "defense": BASE_DEFENSE,
         "max_hp": BASE_MAX_HP,
@@ -146,6 +179,20 @@ def _base_value(key: str) -> float:
         "crit_damage": BASE_CRIT_DAMAGE,
         "max_void": BASE_MAX_VOID,
     }.get(key, 0.0)
+    attrs = stats.attributes if stats is not None else None
+    if not isinstance(attrs, dict):
+        return base
+    if key == "attack":
+        return base + attrs.get("str", 0) * STR_ATTACK_PER_POINT
+    if key == "max_hp":
+        return base + attrs.get("vit", 0) * VIT_HP_PER_POINT
+    if key == "speed":
+        return base + attrs.get("agi", 0) * AGI_SPEED_PER_POINT
+    if key == "crit_chance":
+        return base + attrs.get("agi", 0) * AGI_CRIT_PER_POINT
+    if key == "max_void":
+        return base + attrs.get("int", 0) * INT_VOID_PER_POINT
+    return base
 
 
 __all__ = [

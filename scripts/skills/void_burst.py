@@ -16,6 +16,13 @@ from scripts.skill_config import (
 from scripts.skills.base import VoidBurstSkill
 
 
+def burst_damage(manager) -> float:
+    mods = getattr(manager, "mods", None)
+    if mods is None:
+        return BURST_DAMAGE
+    return BURST_DAMAGE * mods.burst_damage * mods.void_power
+
+
 class VoidBurst(VoidBurstSkill):
     def cast(self, manager) -> bool:
         if not self.can_use(manager):
@@ -31,7 +38,7 @@ class VoidBurst(VoidBurstSkill):
             x,
             y,
             BURST_RADIUS,
-            BURST_DAMAGE,
+            burst_damage(manager),
             BURST_KNOCKBACK,
             heavy=False,
         )

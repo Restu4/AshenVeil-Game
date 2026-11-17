@@ -34,6 +34,7 @@ from scripts.ui.boss_hud import BossHUD
 HP_X, HP_Y, HP_W, HP_H = 20, 20, 204, 13
 VOID_X, VOID_Y, VOID_W, VOID_H = 20, 44, 172, 9
 DASH_X, DASH_Y, DASH_W, DASH_H = 20, 57, 120, 3
+EXP_X, EXP_Y, EXP_W, EXP_H = 20, 63, 172, 3
 HELP_W, HELP_H = 438, 32
 
 
@@ -153,7 +154,8 @@ class HUD:
         pygame.draw.rect(target, (106, 94, 119), (x - 2, y - 2, w + 4, h + 4), 1)
 
     # ------------------------------------------------------------------
-    def _draw_vitals(self, target: pygame.Surface, player, skills=None) -> None:
+    def _draw_vitals(self, target: pygame.Surface, player, skills=None,
+                     exp=None) -> None:
         draw_text(target, "HP", HP_X, 8, 1, (158, 96, 106), spacing=1,
                   shadow=(0, 0, 0))
         level = f"LV {player.level}"
@@ -209,10 +211,32 @@ class HUD:
         pygame.draw.rect(target, color, (DASH_X, DASH_Y,
                                          int(DASH_W * dash), DASH_H))
 
+        # Phase 7: a slim EXP strip under the dash bar.  HP/VOID geometry is
+        # untouched and the label sits in free space to the right.
+        if exp is not None:
+            pygame.draw.rect(target, (6, 5, 10),
+                             (EXP_X - 1, EXP_Y - 1, EXP_W + 2, EXP_H + 2))
+            pygame.draw.rect(target, (16, 13, 22),
+                             (EXP_X, EXP_Y, EXP_W, EXP_H))
+            fill = int(EXP_W * exp.exp_ratio)
+            if fill > 0:
+                pygame.draw.rect(target, (132, 98, 190),
+                                 (EXP_X, EXP_Y, fill, EXP_H))
+                pygame.draw.rect(target, (224, 194, 250),
+                                 (EXP_X, EXP_Y, fill, 1))
+            pygame.draw.rect(target, (96, 76, 122),
+                             (EXP_X - 1, EXP_Y - 1, EXP_W + 2, EXP_H + 2), 1)
+            if exp.is_max:
+                label = "EXP MAX"
+            else:
+                label = f"EXP {exp.exp}/{exp.exp_required}"
+            draw_text(target, label, 196, 57, 1, (152, 134, 176),
+                      spacing=1, shadow=(0, 0, 0))
+
     # ------------------------------------------------------------------
     def draw(self, target: pygame.Surface, player, combat_manager=None,
-             camera=None, skills=None, stage=None, boss=None) -> None:
-        self._draw_vitals(target, player, skills)
+             camera=None, skills=None, stage=None, boss=None, exp=None) -> None:
+        self._draw_vitals(target, player, skills, exp)
         self.combat_ui.draw_combat(target, combat_manager, camera)
         self.skill_hud.draw(target, skills, player)
         if stage is not None:

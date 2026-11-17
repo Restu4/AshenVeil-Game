@@ -37,6 +37,17 @@ class Skill:
 
     def __init__(self) -> None:
         self.timer = 0.0
+        self._active_cooldown = 0.0
+
+    def effective_cost(self, manager) -> float:
+        mods = getattr(manager, "mods", None)
+        mult = mods.cost_mult() if mods is not None else 1.0
+        return max(0.0, self.cost * mult)
+
+    def effective_cooldown(self, manager) -> float:
+        mods = getattr(manager, "mods", None)
+        mult = mods.cooldown_mult(self.key) if mods is not None else 1.0
+        return max(0.05, self.cooldown * mult)
 
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
@@ -50,9 +61,10 @@ class Skill:
     @property
     def cooldown_ratio(self) -> float:
         """1.0 when ready, falling to 0.0 as the cooldown expires."""
-        if self.cooldown <= 0.0:
+        total = self._active_cooldown if self._active_cooldown > 0.0 else self.cooldown
+        if total <= 0.0:
             return 1.0
-        return max(0.0, min(1.0, 1.0 - self.timer / self.cooldown))
+        return max(0.0, min(1.0, 1.0 - self.timer / total))
 
     @property
     def cooldown_left(self) -> float:
@@ -63,13 +75,15 @@ class Skill:
         return (
             self.ready
             and manager.player.combat.can_cast_skill
-            and manager.energy.can_afford(self.cost)
+            and manager.energy.can_afford(self.effective_cost(manager))
         )
 
     def commit(self, manager) -> bool:
-        if not manager.energy.spend(self.cost):
+        cost = self.effective_cost(manager)
+        if not manager.energy.spend(cost):
             return False
-        self.timer = self.cooldown
+        self._active_cooldown = self.effective_cooldown(manager)
+        self.timer = self._active_cooldown
         return True
 
     def cast(self, manager) -> bool:      # pragma: no cover - abstract
@@ -77,6 +91,7 @@ class Skill:
 
     def reset(self) -> None:
         self.timer = 0.0
+        self._active_cooldown = 0.0
 
 
 class VoidBurstSkill(Skill):

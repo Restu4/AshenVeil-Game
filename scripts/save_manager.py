@@ -17,6 +17,18 @@ from copy import deepcopy
 from pathlib import Path
 
 from scripts.item_database import EQUIPMENT_SLOTS, get_item
+from scripts.progression_config import (
+    ATTRIBUTE_KEYS,
+    MAX_ATTRIBUTE_RANK,
+    MAX_DEFEATED_KEYS,
+    MAX_LEVEL,
+    START_LEVEL,
+    attribute_points_for_level,
+    clamp_int,
+    exp_for_level,
+    skill_points_for_level,
+)
+from scripts.skill_tree_config import VALID_NODE_IDS
 from settings import BASE_DIR
 
 SAVE_VERSION = 1
@@ -58,13 +70,27 @@ def default_inventory_data() -> dict:
     }
 
 
+def default_player_data() -> dict:
+    """A level-1 wanderer with no spent points or skill nodes."""
+    return {
+        "level": START_LEVEL,
+        "exp": 0,
+        "total_exp": 0,
+        "attributes": {key: 0 for key in ATTRIBUTE_KEYS},
+        "attribute_points": 0,
+        "skill_points": 0,
+        "skill_nodes": [],
+    }
+
+
 def default_data() -> dict:
-    """A brand new profile: nothing completed, the player keeps their level."""
+    """A brand new profile: level 1, nothing completed, starter satchel."""
     return {
         "version": SAVE_VERSION,
         "levels": {},
-        "player": {"level": 7},
+        "player": default_player_data(),
         "inventory": default_inventory_data(),
+        "defeated_enemies": [],
     }
 
 
@@ -127,16 +153,78 @@ def _clean_inventory(raw, player_level: int) -> dict:
     return clean
 
 
+def _clean_player(raw) -> dict:
+    """Validate every Phase 7 progression field; junk never reaches the game."""
+    clean = default_player_data()
+    if not isinstance(raw, dict):
+        return clean
+
+    # The historical 1..99 clamp is deliberately kept here: Phase 5 saves may
+    # legitimately contain higher levels.  Gameplay itself caps at MAX_LEVEL in
+    # ExpManager, which is also where a level-up writes the corrected value.
+    clean["level"] = max(1, min(99, clamp_int(
+        raw.get("level", START_LEVEL), 1, 99, START_LEVEL
+    )))
+
+    need = max(1, exp_for_level(clean["level"]))
+    clean["exp"] = clamp_int(raw.get("exp", 0), 0, need, 0)
+    clean["total_exp"] = max(
+        clean["exp"],
+        clamp_int(raw.get("total_exp", clean["exp"]), 0, 10 ** 9, clean["exp"]),
+    )
+
+    attrs = raw.get("attributes")
+    if isinstance(attrs, dict):
+        for key in ATTRIBUTE_KEYS:
+            clean["attributes"][key] = clamp_int(
+                attrs.get(key, 0), 0, MAX_ATTRIBUTE_RANK, 0
+            )
+
+    # Phase 5/6 profiles have no point counters: award what their saved level
+    # already earned, minus attributes actually present in that old profile.
+    legacy_attr = max(
+        0,
+        attribute_points_for_level(clean["level"]) - sum(
+            clean["attributes"].values()
+        ),
+    )
+    clean["attribute_points"] = clamp_int(
+        raw.get("attribute_points", legacy_attr), 0, 10 ** 6, 0
+    )
+    clean["skill_points"] = clamp_int(
+        raw.get("skill_points", skill_points_for_level(clean["level"])),
+        0, 10 ** 6, 0,
+    )
+
+    nodes = raw.get("skill_nodes")
+    if isinstance(nodes, (list, tuple, set)):
+        for node_id in nodes:
+            if isinstance(node_id, str) and node_id in VALID_NODE_IDS:
+                if node_id not in clean["skill_nodes"]:
+                    clean["skill_nodes"].append(node_id)
+    return clean
+
+
+def _clean_defeated(raw) -> list[str]:
+    """Deduplicate and bound the persistent anti-farming marker list."""
+    clean: list[str] = []
+    if isinstance(raw, (list, tuple, set)):
+        for key in raw:
+            if isinstance(key, str) and key and key not in clean:
+                clean.append(key[:80])
+            if len(clean) >= MAX_DEFEATED_KEYS:
+                break
+    return clean
+
+
 def canonical_data(raw) -> dict:
     """Return a well-shaped profile built from arbitrary loaded data."""
     data = default_data()
     if not isinstance(raw, dict):
         return data
 
-    player = raw.get("player")
-    if isinstance(player, dict):
-        level = int(_number(player.get("level", 7), 7))
-        data["player"]["level"] = max(1, min(99, level))
+    data["player"] = _clean_player(raw.get("player"))
+    data["defeated_enemies"] = _clean_defeated(raw.get("defeated_enemies"))
 
     levels = raw.get("levels")
     if isinstance(levels, dict):
@@ -271,6 +359,7 @@ __all__ = [
     "canonical_data",
     "default_data",
     "default_inventory_data",
+    "default_player_data",
     "default_save_file",
     "load_profile",
 ]

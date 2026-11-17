@@ -16,6 +16,7 @@ from scripts.skill_config import (
     BURST_KEY,
 )
 from scripts.skill_effects import SkillEffects
+from scripts.skill_modifiers import SkillModifiers, compute_modifiers
 from scripts.skills import Eclipse, ShadowStep, VoidBurst, VoidSlash
 from scripts.void_energy import VoidEnergy
 
@@ -27,6 +28,8 @@ class SkillManager:
         self.camera = camera
         self.energy = VoidEnergy()
         self.skill_effects = SkillEffects()
+        # Phase 7: effective numbers folded from attributes and skill nodes.
+        self.mods: SkillModifiers = compute_modifiers()
 
         self.burst = VoidBurst()
         self.shadow = ShadowStep()

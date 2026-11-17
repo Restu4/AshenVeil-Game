@@ -8,6 +8,7 @@ same profile.
 from __future__ import annotations
 
 from scripts.level_config import LEVELS, get_level, level_index, next_level_id
+from scripts.progression_config import MAX_LEVEL, START_LEVEL
 from scripts.save_manager import SaveManager, canonical_data, default_data
 
 
@@ -29,7 +30,7 @@ class ProgressionManager:
     # ------------------------------------------------------------------
     @property
     def player_level(self) -> int:
-        return int(self.data.get("player", {}).get("level", 7))
+        return int(self.data.get("player", {}).get("level", START_LEVEL))
 
     def entry(self, level_id: str) -> dict:
         return self.data.setdefault("levels", {}).setdefault(
@@ -101,8 +102,17 @@ class ProgressionManager:
         return not was_complete
 
     def record_player_level(self, level: int) -> None:
-        self.data.setdefault("player", {})["level"] = max(1, min(99, int(level)))
+        self.data.setdefault("player", {})["level"] = max(
+            START_LEVEL, min(MAX_LEVEL, int(level))
+        )
         self.save_now()
+
+    def save_progression(self, exp_manager) -> bool:
+        """Mirror the live EXP/attribute/skill snapshot into the shared save."""
+        fragment = exp_manager.to_profile()
+        self.data["player"] = fragment["player"]
+        self.data["defeated_enemies"] = fragment["defeated_enemies"]
+        return self.save_now()
 
     def save_now(self) -> bool:
         return self.save.save(self.data)

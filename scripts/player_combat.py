@@ -84,9 +84,16 @@ class PlayerCombat:
         self.combo_decay = 0.0
 
         self.dodge_time = 0.0
+        self.dodge_total = DODGE_DURATION
         self.dodge_cooldown = 0.0
         self.dodge_x = 0.0
         self.dodge_y = 0.0
+        # Phase 7 skill-tree modifiers, pushed by SkillTreeManager.apply().
+        self.dodge_duration_mult = 1.0
+        self.shadow_speed_mult = 1.0
+        self.shadow_duration_mult = 1.0
+        self.speed_surge_mult = 0.0
+        self.speed_surge_timer = 0.0
 
         self.dash_time = 0.0
         self.dash_cooldown = 0.0
@@ -142,7 +149,8 @@ class PlayerCombat:
         self.dodge_x, self.dodge_y = ix / length, iy / length
         self.player.facing = _facing_from_vector(ix, iy, self.player.facing)
 
-        self.dodge_time = DODGE_DURATION
+        self.dodge_total = max(0.05, DODGE_DURATION * self.dodge_duration_mult)
+        self.dodge_time = self.dodge_total
         self.dodge_cooldown = DODGE_COOLDOWN
         self.invuln = max(self.invuln, DODGE_IFRAME)
         self.state = DODGE
@@ -246,6 +254,7 @@ class PlayerCombat:
     def update(self, dt: float) -> None:
         dt = max(0.0, dt)
         self.dodge_cooldown = max(0.0, self.dodge_cooldown - dt)
+        self.speed_surge_timer = max(0.0, self.speed_surge_timer - dt)
         self.dash_cooldown = max(0.0, self.dash_cooldown - dt)
         self.cast_time = max(0.0, self.cast_time - dt)
         self.invuln = max(0.0, self.invuln - dt)
@@ -273,6 +282,8 @@ class PlayerCombat:
             if self.dodge_time <= 0.0:
                 self.dodge_time = 0.0
                 self.state = IDLE
+                if self.speed_surge_mult > 0.0:
+                    self.speed_surge_timer = 1.5
             return
 
         if self.state == SHADOW_STEP:

@@ -179,6 +179,27 @@ class Effects:
         })
         self.novas = self.novas[-3:]
 
+    def spawn_level_up(self, x: float, y: float) -> None:
+        """Short gold/violet burst for a character level-up (browser-light)."""
+        self.spawn_nova(x, y, 150.0)
+        colors = ((242, 214, 148), (196, 150, 244), (255, 240, 206))
+        for _ in range(26):
+            angle = self.rng.uniform(-math.pi, math.pi)
+            speed = self.rng.uniform(55, 205)
+            self.particles.append({
+                "x": x + self.rng.uniform(-10, 10),
+                "y": y - self.rng.uniform(4, 28),
+                "vx": math.cos(angle) * speed,
+                "vy": math.sin(angle) * speed * 0.7 - 46,
+                "gravity": 130.0,
+                "life": self.rng.uniform(0.30, 0.62),
+                "max": 0.62,
+                "size": self.rng.choice((1, 2, 2, 3)),
+                "color": self.rng.choice(colors),
+            })
+        self.particles = self.particles[-200:]
+        self.spawn_flash((168, 126, 226), 0.22)
+
     def spawn_damage_number(self, x: float, y: float, amount: float,
                             heavy: bool = False, crit: bool = False) -> None:
         text = f"{int(round(amount))}"

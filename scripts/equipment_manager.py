@@ -128,7 +128,11 @@ class EquipmentManager:
 
         if self.combat is not None:
             self.combat.crit_chance = self.stats.crit_chance
-            self.combat.crit_multiplier = self.stats.crit_damage
+            crit_multiplier = self.stats.crit_damage
+            mods = getattr(self.skills, "mods", None) if self.skills else None
+            if mods is not None:
+                crit_multiplier *= mods.crit_damage
+            self.combat.crit_multiplier = crit_multiplier
         if self.skills is not None:
             energy = getattr(self.skills, "energy", None)
             if energy is not None:

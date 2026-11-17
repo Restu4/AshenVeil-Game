@@ -29,6 +29,7 @@ from scripts.combat_config import (
     SHAKE_PLAYER_HURT_TIME,
 )
 from scripts.enemy import Enemy
+from scripts.progression_config import enemy_tier
 from scripts.projectile import ProjectileSystem
 from scripts.spawner import Spawner
 
@@ -49,6 +50,8 @@ class CombatManager:
         # constants keep the unmodified character identical to earlier phases.
         self.crit_chance = CRIT_CHANCE
         self.crit_multiplier = CRIT_MULTIPLIER
+        # Phase 7: skill-tree elite damage bonus (1.0 keeps earlier tuning).
+        self.elite_damage_mult = 1.0
 
         # Hit stop freezes the simulation for a few frames after a connect.
         self.hit_stop = 0.0
@@ -272,6 +275,8 @@ class CombatManager:
     ) -> tuple[float, bool]:
         if enemy is None or not enemy.alive:
             return 0.0, False
+        if self.elite_damage_mult > 1.0 and enemy_tier(enemy) == "elite":
+            damage *= self.elite_damage_mult
         lost, killed = enemy.take_damage(
             damage, source_x, source_y, knockback, heavy, knock_dir=knock_dir
         )

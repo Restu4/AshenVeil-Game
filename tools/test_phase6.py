@@ -197,6 +197,14 @@ def main() -> None:
     check(game.state == PLAY, "Game still starts directly in PLAY")
     check(all(value is None for value in game.equipment.equipped.values()),
           "a fresh profile has no pre-equipped items")
+    check(game.exp.level == 1, "Phase 7 starts a fresh wanderer at level 1")
+    # Phase 6 gear tests were written around a level-7 test character.  Set
+    # that level explicitly on both authorities (do not change the new level-1
+    # default) so level-gated equipment scenarios keep their original meaning.
+    game.exp.level = 7
+    game.player.level = 7
+    game.progression.record_player_level(7)
+    game.equipment.refresh_level()
     game.inventory.add("ash_shard", 250)
     check(game.inventory.count("ash_shard") == 99
           and len([e for e in game.inventory.entries
