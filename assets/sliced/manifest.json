@@ -1,0 +1,852 @@
+{
+  "house_timber": {
+    "file": "assets/sliced/buildings/house_timber.png",
+    "rect": [
+      621,
+      11,
+      354,
+      335
+    ],
+    "category": "buildings"
+  },
+  "house_long": {
+    "file": "assets/sliced/buildings/house_long.png",
+    "rect": [
+      987,
+      11,
+      254,
+      335
+    ],
+    "category": "buildings"
+  },
+  "church": {
+    "file": "assets/sliced/buildings/church.png",
+    "rect": [
+      1256,
+      13,
+      258,
+      333
+    ],
+    "category": "buildings"
+  },
+  "tower_purple": {
+    "file": "assets/sliced/buildings/tower_purple.png",
+    "rect": [
+      1522,
+      6,
+      137,
+      348
+    ],
+    "category": "buildings"
+  },
+  "stone_gate": {
+    "file": "assets/sliced/buildings/stone_gate.png",
+    "rect": [
+      611,
+      361,
+      247,
+      179
+    ],
+    "category": "buildings"
+  },
+  "stone_tower": {
+    "file": "assets/sliced/buildings/stone_tower.png",
+    "rect": [
+      885,
+      366,
+      128,
+      171
+    ],
+    "category": "buildings"
+  },
+  "stone_pillar_tall": {
+    "file": "assets/sliced/buildings/stone_pillar_tall.png",
+    "rect": [
+      1028,
+      360,
+      100,
+      180
+    ],
+    "category": "buildings"
+  },
+  "stone_pillar": {
+    "file": "assets/sliced/buildings/stone_pillar.png",
+    "rect": [
+      865,
+      371,
+      26,
+      101
+    ],
+    "category": "buildings"
+  },
+  "stone_wall_gate": {
+    "file": "assets/sliced/buildings/stone_wall_gate.png",
+    "rect": [
+      141,
+      522,
+      181,
+      102
+    ],
+    "category": "buildings"
+  },
+  "stone_arch": {
+    "file": "assets/sliced/buildings/stone_arch.png",
+    "rect": [
+      954,
+      784,
+      200,
+      133
+    ],
+    "category": "buildings"
+  },
+  "stone_wall": {
+    "file": "assets/sliced/buildings/stone_wall.png",
+    "rect": [
+      1381,
+      777,
+      210,
+      141
+    ],
+    "category": "buildings"
+  },
+  "statue_great": {
+    "file": "assets/sliced/buildings/statue_great.png",
+    "rect": [
+      1228,
+      778,
+      142,
+      154
+    ],
+    "category": "buildings"
+  },
+  "statue": {
+    "file": "assets/sliced/buildings/statue.png",
+    "rect": [
+      1588,
+      556,
+      59,
+      150
+    ],
+    "category": "buildings"
+  },
+  "well": {
+    "file": "assets/sliced/buildings/well.png",
+    "rect": [
+      1136,
+      359,
+      143,
+      178
+    ],
+    "category": "buildings"
+  },
+  "signpost": {
+    "file": "assets/sliced/buildings/signpost.png",
+    "rect": [
+      1287,
+      359,
+      143,
+      178
+    ],
+    "category": "buildings"
+  },
+  "cart": {
+    "file": "assets/sliced/props/cart.png",
+    "rect": [
+      1429,
+      367,
+      224,
+      179
+    ],
+    "category": "props"
+  },
+  "lantern_tall": {
+    "file": "assets/sliced/props/lantern_tall.png",
+    "rect": [
+      1470,
+      548,
+      42,
+      156
+    ],
+    "category": "props"
+  },
+  "lamp_post": {
+    "file": "assets/sliced/props/lamp_post.png",
+    "rect": [
+      1233,
+      591,
+      36,
+      102
+    ],
+    "category": "props"
+  },
+  "portal": {
+    "file": "assets/sliced/props/portal.png",
+    "rect": [
+      1596,
+      709,
+      59,
+      145
+    ],
+    "category": "props"
+  },
+  "fence_a": {
+    "file": "assets/sliced/props/fence_a.png",
+    "rect": [
+      15,
+      522,
+      114,
+      101
+    ],
+    "category": "props"
+  },
+  "fence_b": {
+    "file": "assets/sliced/props/fence_b.png",
+    "rect": [
+      334,
+      522,
+      131,
+      101
+    ],
+    "category": "props"
+  },
+  "fence_rail": {
+    "file": "assets/sliced/props/fence_rail.png",
+    "rect": [
+      15,
+      631,
+      113,
+      65
+    ],
+    "category": "props"
+  },
+  "fence_rail_b": {
+    "file": "assets/sliced/props/fence_rail_b.png",
+    "rect": [
+      143,
+      639,
+      132,
+      44
+    ],
+    "category": "props"
+  },
+  "fence_gate": {
+    "file": "assets/sliced/props/fence_gate.png",
+    "rect": [
+      476,
+      538,
+      226,
+      81
+    ],
+    "category": "props"
+  },
+  "barrel_a": {
+    "file": "assets/sliced/props/barrel_a.png",
+    "rect": [
+      778,
+      548,
+      54,
+      72
+    ],
+    "category": "props"
+  },
+  "barrel_b": {
+    "file": "assets/sliced/props/barrel_b.png",
+    "rect": [
+      848,
+      564,
+      55,
+      56
+    ],
+    "category": "props"
+  },
+  "barrel_c": {
+    "file": "assets/sliced/props/barrel_c.png",
+    "rect": [
+      729,
+      630,
+      51,
+      75
+    ],
+    "category": "props"
+  },
+  "barrel_d": {
+    "file": "assets/sliced/props/barrel_d.png",
+    "rect": [
+      796,
+      632,
+      46,
+      73
+    ],
+    "category": "props"
+  },
+  "barrel_e": {
+    "file": "assets/sliced/props/barrel_e.png",
+    "rect": [
+      865,
+      707,
+      62,
+      69
+    ],
+    "category": "props"
+  },
+  "barrel_f": {
+    "file": "assets/sliced/props/barrel_f.png",
+    "rect": [
+      1147,
+      547,
+      59,
+      54
+    ],
+    "category": "props"
+  },
+  "crate_a": {
+    "file": "assets/sliced/props/crate_a.png",
+    "rect": [
+      860,
+      634,
+      77,
+      61
+    ],
+    "category": "props"
+  },
+  "crate_b": {
+    "file": "assets/sliced/props/crate_b.png",
+    "rect": [
+      952,
+      630,
+      46,
+      66
+    ],
+    "category": "props"
+  },
+  "crate_c": {
+    "file": "assets/sliced/props/crate_c.png",
+    "rect": [
+      716,
+      551,
+      46,
+      69
+    ],
+    "category": "props"
+  },
+  "crate_d": {
+    "file": "assets/sliced/props/crate_d.png",
+    "rect": [
+      1011,
+      629,
+      60,
+      67
+    ],
+    "category": "props"
+  },
+  "woodpile": {
+    "file": "assets/sliced/props/woodpile.png",
+    "rect": [
+      651,
+      631,
+      62,
+      70
+    ],
+    "category": "props"
+  },
+  "logs": {
+    "file": "assets/sliced/props/logs.png",
+    "rect": [
+      387,
+      631,
+      79,
+      69
+    ],
+    "category": "props"
+  },
+  "bones": {
+    "file": "assets/sliced/props/bones.png",
+    "rect": [
+      1262,
+      715,
+      77,
+      52
+    ],
+    "category": "props"
+  },
+  "skull": {
+    "file": "assets/sliced/props/skull.png",
+    "rect": [
+      1353,
+      735,
+      40,
+      31
+    ],
+    "category": "props"
+  },
+  "skull_b": {
+    "file": "assets/sliced/props/skull_b.png",
+    "rect": [
+      759,
+      791,
+      43,
+      40
+    ],
+    "category": "props"
+  },
+  "gravestone_a": {
+    "file": "assets/sliced/props/gravestone_a.png",
+    "rect": [
+      1051,
+      702,
+      58,
+      73
+    ],
+    "category": "props"
+  },
+  "gravestone_b": {
+    "file": "assets/sliced/props/gravestone_b.png",
+    "rect": [
+      1123,
+      699,
+      56,
+      66
+    ],
+    "category": "props"
+  },
+  "gravestone_c": {
+    "file": "assets/sliced/props/gravestone_c.png",
+    "rect": [
+      1193,
+      695,
+      49,
+      83
+    ],
+    "category": "props"
+  },
+  "gravestone_d": {
+    "file": "assets/sliced/props/gravestone_d.png",
+    "rect": [
+      1007,
+      717,
+      29,
+      51
+    ],
+    "category": "props"
+  },
+  "grave_cross": {
+    "file": "assets/sliced/props/grave_cross.png",
+    "rect": [
+      1378,
+      549,
+      49,
+      146
+    ],
+    "category": "props"
+  },
+  "grave_cross_b": {
+    "file": "assets/sliced/props/grave_cross_b.png",
+    "rect": [
+      383,
+      359,
+      48,
+      70
+    ],
+    "category": "props"
+  },
+  "rock_a": {
+    "file": "assets/sliced/props/rock_a.png",
+    "rect": [
+      814,
+      848,
+      82,
+      60
+    ],
+    "category": "props"
+  },
+  "rock_b": {
+    "file": "assets/sliced/props/rock_b.png",
+    "rect": [
+      820,
+      784,
+      50,
+      48
+    ],
+    "category": "props"
+  },
+  "rock_c": {
+    "file": "assets/sliced/props/rock_c.png",
+    "rect": [
+      14,
+      446,
+      81,
+      69
+    ],
+    "category": "props"
+  },
+  "rock_d": {
+    "file": "assets/sliced/props/rock_d.png",
+    "rect": [
+      104,
+      446,
+      88,
+      65
+    ],
+    "category": "props"
+  },
+  "rock_e": {
+    "file": "assets/sliced/props/rock_e.png",
+    "rect": [
+      424,
+      290,
+      66,
+      65
+    ],
+    "category": "props"
+  },
+  "rubble_a": {
+    "file": "assets/sliced/props/rubble_a.png",
+    "rect": [
+      695,
+      848,
+      97,
+      76
+    ],
+    "category": "props"
+  },
+  "rubble_b": {
+    "file": "assets/sliced/props/rubble_b.png",
+    "rect": [
+      308,
+      434,
+      119,
+      83
+    ],
+    "category": "props"
+  },
+  "rubble_c": {
+    "file": "assets/sliced/props/rubble_c.png",
+    "rect": [
+      289,
+      636,
+      77,
+      66
+    ],
+    "category": "props"
+  },
+  "well_small": {
+    "file": "assets/sliced/props/well_small.png",
+    "rect": [
+      996,
+      551,
+      55,
+      64
+    ],
+    "category": "props"
+  },
+  "shrine": {
+    "file": "assets/sliced/props/shrine.png",
+    "rect": [
+      715,
+      723,
+      46,
+      42
+    ],
+    "category": "props"
+  },
+  "tree_dead_big": {
+    "file": "assets/sliced/vegetation/tree_dead_big.png",
+    "rect": [
+      12,
+      688,
+      295,
+      242
+    ],
+    "category": "vegetation"
+  },
+  "tree_dead": {
+    "file": "assets/sliced/vegetation/tree_dead.png",
+    "rect": [
+      297,
+      707,
+      146,
+      219
+    ],
+    "category": "vegetation"
+  },
+  "tree_dead_tall": {
+    "file": "assets/sliced/vegetation/tree_dead_tall.png",
+    "rect": [
+      428,
+      630,
+      208,
+      293
+    ],
+    "category": "vegetation"
+  },
+  "tree_dead_b": {
+    "file": "assets/sliced/vegetation/tree_dead_b.png",
+    "rect": [
+      564,
+      717,
+      132,
+      156
+    ],
+    "category": "vegetation"
+  },
+  "tree_dead_small": {
+    "file": "assets/sliced/vegetation/tree_dead_small.png",
+    "rect": [
+      13,
+      358,
+      55,
+      78
+    ],
+    "category": "vegetation"
+  },
+  "tree_dead_small_b": {
+    "file": "assets/sliced/vegetation/tree_dead_small_b.png",
+    "rect": [
+      434,
+      360,
+      48,
+      69
+    ],
+    "category": "vegetation"
+  },
+  "bush_a": {
+    "file": "assets/sliced/vegetation/bush_a.png",
+    "rect": [
+      13,
+      289,
+      97,
+      67
+    ],
+    "category": "vegetation"
+  },
+  "bush_b": {
+    "file": "assets/sliced/vegetation/bush_b.png",
+    "rect": [
+      116,
+      292,
+      86,
+      62
+    ],
+    "category": "vegetation"
+  },
+  "bush_c": {
+    "file": "assets/sliced/vegetation/bush_c.png",
+    "rect": [
+      206,
+      290,
+      94,
+      66
+    ],
+    "category": "vegetation"
+  },
+  "bush_d": {
+    "file": "assets/sliced/vegetation/bush_d.png",
+    "rect": [
+      171,
+      360,
+      106,
+      70
+    ],
+    "category": "vegetation"
+  },
+  "bush_e": {
+    "file": "assets/sliced/vegetation/bush_e.png",
+    "rect": [
+      284,
+      360,
+      94,
+      69
+    ],
+    "category": "vegetation"
+  },
+  "bush_f": {
+    "file": "assets/sliced/vegetation/bush_f.png",
+    "rect": [
+      198,
+      435,
+      101,
+      82
+    ],
+    "category": "vegetation"
+  },
+  "bush_g": {
+    "file": "assets/sliced/vegetation/bush_g.png",
+    "rect": [
+      434,
+      435,
+      87,
+      82
+    ],
+    "category": "vegetation"
+  },
+  "bush_h": {
+    "file": "assets/sliced/vegetation/bush_h.png",
+    "rect": [
+      779,
+      715,
+      64,
+      51
+    ],
+    "category": "vegetation"
+  },
+  "bush_i": {
+    "file": "assets/sliced/vegetation/bush_i.png",
+    "rect": [
+      531,
+      448,
+      29,
+      59
+    ],
+    "category": "vegetation"
+  },
+  "bush_j": {
+    "file": "assets/sliced/vegetation/bush_j.png",
+    "rect": [
+      569,
+      448,
+      31,
+      56
+    ],
+    "category": "vegetation"
+  },
+  "bush_k": {
+    "file": "assets/sliced/vegetation/bush_k.png",
+    "rect": [
+      494,
+      291,
+      94,
+      63
+    ],
+    "category": "vegetation"
+  },
+  "plant_a": {
+    "file": "assets/sliced/vegetation/plant_a.png",
+    "rect": [
+      399,
+      888,
+      53,
+      38
+    ],
+    "category": "vegetation"
+  },
+  "plant_b": {
+    "file": "assets/sliced/vegetation/plant_b.png",
+    "rect": [
+      540,
+      887,
+      40,
+      38
+    ],
+    "category": "vegetation"
+  },
+  "plant_c": {
+    "file": "assets/sliced/vegetation/plant_c.png",
+    "rect": [
+      611,
+      878,
+      67,
+      47
+    ],
+    "category": "vegetation"
+  },
+  "plant_d": {
+    "file": "assets/sliced/vegetation/plant_d.png",
+    "rect": [
+      267,
+      839,
+      59,
+      67
+    ],
+    "category": "vegetation"
+  },
+  "grass": {
+    "file": "assets/sliced/ground/grass.png",
+    "rect": [
+      13,
+      10,
+      96,
+      96
+    ],
+    "category": "ground"
+  },
+  "dirt": {
+    "file": "assets/sliced/ground/dirt.png",
+    "rect": [
+      136,
+      136,
+      96,
+      96
+    ],
+    "category": "ground"
+  },
+  "dirt_b": {
+    "file": "assets/sliced/ground/dirt_b.png",
+    "rect": [
+      192,
+      192,
+      96,
+      96
+    ],
+    "category": "ground"
+  },
+  "stone": {
+    "file": "assets/sliced/ground/stone.png",
+    "rect": [
+      288,
+      248,
+      96,
+      96
+    ],
+    "category": "ground"
+  },
+  "stone_b": {
+    "file": "assets/sliced/ground/stone_b.png",
+    "rect": [
+      296,
+      256,
+      96,
+      96
+    ],
+    "category": "ground"
+  },
+  "moss_purple": {
+    "file": "assets/sliced/ground/moss_purple.png",
+    "rect": [
+      384,
+      208,
+      96,
+      96
+    ],
+    "category": "ground"
+  },
+  "moss_purple_b": {
+    "file": "assets/sliced/ground/moss_purple_b.png",
+    "rect": [
+      392,
+      216,
+      96,
+      96
+    ],
+    "category": "ground"
+  },
+  "purple_soil": {
+    "file": "assets/sliced/ground/purple_soil.png",
+    "rect": [
+      480,
+      120,
+      96,
+      96
+    ],
+    "category": "ground"
+  },
+  "dark_soil": {
+    "file": "assets/sliced/ground/dark_soil.png",
+    "rect": [
+      208,
+      216,
+      96,
+      96
+    ],
+    "category": "ground"
+  }
+}

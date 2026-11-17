@@ -1,0 +1,3 @@
+# Optional: only needed to re-slice the source atlas or rebake the ground.
+Pillow>=10.0
+numpy>=1.26

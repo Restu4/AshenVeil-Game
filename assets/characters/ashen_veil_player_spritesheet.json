@@ -1,0 +1,184 @@
+{
+  "frame_size": [
+    64,
+    64
+  ],
+  "columns": 8,
+  "rows": [
+    {
+      "name": "idle_down",
+      "row": 0,
+      "frames": 4,
+      "fps": 5,
+      "loop": true
+    },
+    {
+      "name": "idle_up",
+      "row": 1,
+      "frames": 4,
+      "fps": 5,
+      "loop": true
+    },
+    {
+      "name": "idle_left",
+      "row": 2,
+      "frames": 4,
+      "fps": 5,
+      "loop": true
+    },
+    {
+      "name": "idle_right",
+      "row": 3,
+      "frames": 4,
+      "fps": 5,
+      "loop": true
+    },
+    {
+      "name": "walk_down",
+      "row": 4,
+      "frames": 6,
+      "fps": 8,
+      "loop": true
+    },
+    {
+      "name": "walk_up",
+      "row": 5,
+      "frames": 6,
+      "fps": 8,
+      "loop": true
+    },
+    {
+      "name": "walk_left",
+      "row": 6,
+      "frames": 6,
+      "fps": 8,
+      "loop": true
+    },
+    {
+      "name": "walk_right",
+      "row": 7,
+      "frames": 6,
+      "fps": 8,
+      "loop": true
+    },
+    {
+      "name": "run_down",
+      "row": 8,
+      "frames": 6,
+      "fps": 12,
+      "loop": true
+    },
+    {
+      "name": "run_up",
+      "row": 9,
+      "frames": 6,
+      "fps": 12,
+      "loop": true
+    },
+    {
+      "name": "run_left",
+      "row": 10,
+      "frames": 6,
+      "fps": 12,
+      "loop": true
+    },
+    {
+      "name": "run_right",
+      "row": 11,
+      "frames": 6,
+      "fps": 12,
+      "loop": true
+    },
+    {
+      "name": "attack_down",
+      "row": 12,
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "name": "attack_up",
+      "row": 13,
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "name": "attack_left",
+      "row": 14,
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "name": "attack_right",
+      "row": 15,
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "name": "dodge_down",
+      "row": 16,
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "name": "dodge_up",
+      "row": 17,
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "name": "dodge_left",
+      "row": 18,
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "name": "dodge_right",
+      "row": 19,
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "name": "hurt_down",
+      "row": 20,
+      "frames": 3,
+      "fps": 10,
+      "loop": false
+    },
+    {
+      "name": "hurt_up",
+      "row": 21,
+      "frames": 3,
+      "fps": 10,
+      "loop": false
+    },
+    {
+      "name": "hurt_left",
+      "row": 22,
+      "frames": 3,
+      "fps": 10,
+      "loop": false
+    },
+    {
+      "name": "hurt_right",
+      "row": 23,
+      "frames": 3,
+      "fps": 10,
+      "loop": false
+    },
+    {
+      "name": "death",
+      "row": 24,
+      "frames": 8,
+      "fps": 8,
+      "loop": false
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "project": "ASHEN VEIL",
+  "pack": "Ashen Village Environment",
+  "source_atlas": "assets/environment/ashen_village_atlas.png",
+  "image_size": [
+    1672,
+    941
+  ],
+  "format": "PNG RGBA",
+  "notes": [
+    "This is a concept atlas generated for the project.",
+    "The three category images are broad crops of the atlas, not individually sliced sprites.",
+    "The atlas does not guarantee a uniform tile grid; inspect and slice individual elements before importing them into the game.",
+    "Use pixel-art nearest-neighbor scaling; avoid smoothing."
+  ],
+  "regions": {
+    "ground_terrain": {
+      "bbox": [
+        5,
+        5,
+        610,
+        350
+      ],
+      "file": "assets/environment/ground_terrain.png"
+    },
+    "buildings_architecture": {
+      "bbox": [
+        600,
+        5,
+        1665,
+        350
+      ],
+      "file": "assets/environment/buildings_architecture.png"
+    },
+    "props_and_decorations": {
+      "bbox": [
+        5,
+        345,
+        1665,
+        938
+      ],
+      "file": "assets/environment/props_and_decorations.png"
+    }
+  }
+}
