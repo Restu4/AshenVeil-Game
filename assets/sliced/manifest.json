@@ -159,6 +159,16 @@
     ],
     "category": "props"
   },
+  "campfire": {
+    "file": "assets/sliced/props/campfire.png",
+    "rect": [
+      0,
+      0,
+      48,
+      40
+    ],
+    "category": "props"
+  },
   "lantern_tall": {
     "file": "assets/sliced/props/lantern_tall.png",
     "rect": [

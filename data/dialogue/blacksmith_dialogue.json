@@ -1,0 +1,20 @@
+{
+  "id": "blacksmith",
+  "pages": [
+    {
+      "text": "Steel remembers every hand that held it. Bring me a blade or plate, and I will make it remember yours.",
+      "choices": [
+        {"label": "UPGRADE EQUIPMENT", "action": "open_blacksmith"},
+        {"label": "HOW FAR CAN YOU PUSH IT?", "next": 1},
+        {"label": "LEAVE", "action": "close"}
+      ]
+    },
+    {
+      "text": "Five binding passes. Ash shard for the grain, guardian ember for the heart. Past that, even good steel begins to sing.",
+      "choices": [
+        {"label": "BACK", "next": 0},
+        {"label": "LEAVE", "action": "close"}
+      ]
+    }
+  ]
+}

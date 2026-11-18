@@ -1,0 +1,13 @@
+{
+  "id": "merchant",
+  "name": "THE MERCHANT",
+  "title": "SUPPLIES AND STEEL",
+  "x": 1662.0,
+  "y": 1058.0,
+  "facing": "left",
+  "radius": 82.0,
+  "sheet": "npcs/merchant.png",
+  "service": "shop",
+  "dialogue": "merchant",
+  "accent": [226, 174, 88]
+}

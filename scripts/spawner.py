@@ -33,6 +33,7 @@ from scripts.enemy_config import (
     ENEMY_START_GROUP,
     get_archetype,
 )
+from scripts.safe_zone import contains as in_safe_zone
 from scripts.village_layout import ENEMY_SPAWN_POINTS
 from settings import WORLD_H, WORLD_W
 
@@ -169,6 +170,11 @@ class Spawner:
     def _position_valid(self, x: float, y: float, archetype) -> bool:
         if not (WORLD_MARGIN <= x <= WORLD_W - WORLD_MARGIN
                 and WORLD_MARGIN <= y <= WORLD_H - WORLD_MARGIN):
+            return False
+        # The survivors' corner never rolls hostile spawns, including scripted
+        # ones.  Existing points near the plaza are simply skipped in favour
+        # of one of the many authored outposts outside the fence.
+        if in_safe_zone(x, y, 24.0):
             return False
         half_w = archetype.half_w + 3.0
         half_h = archetype.half_h + 3.0

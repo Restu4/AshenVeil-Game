@@ -21,6 +21,12 @@ equipment and loot layer: EXP and levels, four attributes, a three-branch Void
 skill tree, add-on save fields and two full-screen character overlays. The
 original combat, enemies, boss, stage flow and Q/E/R/F bindings stay intact.
 
+**Phase 8** turns the starting corner of Ashen Village into a hostile-free safe
+hub: three animated pixel-art survivors, data-driven conversations, a merchant,
+a blacksmith and the Veil Keeper's story. They share the existing world, save
+profile and `G` interaction key; nothing from Phase 5–7 was rebuilt. The
+survivors only trade, upgrade and foreshadow — they never unlock Level 02.
+
 The playable character uses the original ASHEN VEIL spritesheet (hooded figure,
 black face, single white eye, large back sword, cape and sandals). The village
 reuses artwork from the original environment concept atlas, sliced into named
@@ -69,6 +75,22 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
   stats); `T` opens the three-branch **VOID SKILL TREE**. Every reward, grant,
   attribute scaling, node effect and level-up value is configurable in
   `scripts/progression_config.py` and `scripts/skill_tree_config.py`.
+- **Ashen Village safe hub** — a walled, lantern-lit corner of the existing
+  village (`1320,890 – 1740,1230`) with ruined houses, a merchant stall, a
+  forge, an ancient shrine, fences, barrels, crates and a campfire. No enemy
+  may spawn inside it; a live chaser is expelled and stray bolts expire at the
+  fence. Both gates lead back to danger, and the world, combat and stage flow
+  are untouched. See [The safe hub](#the-safe-hub).
+- **Three survivors** — the merchant, the blacksmith and the Veil Keeper are
+  data-driven NPCs with distinct 256×256 sprite sheets derived from the
+  player's art, idle animation, foot-level collision, a contextual `G` prompt
+  and facing that turns toward the player. Interaction respects walls, so a
+  conversation cannot start through a fence.
+- **Dialogue, trade and forging** — conversations are data-driven with
+  choices, keyboard/mouse navigation, a real sprite portrait and persistent
+  flags. The merchant buys and sells through the real inventory with priced,
+  categorised stock and confirmations; the blacksmith spends gold and materials
+  for levels `+0..+5` that change live stats. See [The safe hub](#the-safe-hub).
 - **Victory flow** — the guardian's death animation plays, every attack and
   hazard stops, and after a short beat the victory screen offers **CONTINUE**
   (preselects the newly unlocked Level 02) and **RETURN TO LEVEL SELECT**
@@ -178,10 +200,16 @@ sprites — the irregular atlas is never stretched or used as a flat backdrop.
 | `R` | VOID SLASH — travelling purple crescent |
 | `F` | ECLIPSE — wind-up ultimate |
 | `Shift` | Run (unrestricted) |
-| `G` | Pick up a nearby world drop |
-| `I` | Open / close the inventory and equipment screen |
+| `G` | Contextual interact: talk to a nearby reachable survivor, otherwise pick up a nearby world drop |
+| `I` | Open / close the inventory and equipment screen (also closes trade / forge) |
 | `P` | Open / close the character sheet and spend attribute points |
 | `T` | Open / close the Void skill tree and unlock nodes |
+| `↑` / `↓` (or `W` / `S`), mouse | Move the dialogue choice, stock row or gear row highlight |
+| `Enter` / `Space` / `G` | Confirm a dialogue choice |
+| `Enter` / `Space` | Open the merchant or forge confirmation |
+| `Tab` | Switch the merchant between BUY and SELL |
+| `←` / `→` (or `A` / `D`) | Change merchant category (BUY) or transaction quantity (SELL) |
+| `Esc` | Close a conversation, trade screen or forge |
 | `Enter` / `Space` / click | Rise again after death |
 | `H` | Toggle control hints |
 | `F1` / `F3` | Toggle debug overlay |
@@ -230,6 +258,94 @@ the existing `Q`/`E`/`R`/`F` skills; no new active ability is created. Purchased
 nodes, attributes, points, EXP and kill markers are added to the same JSON
 profile with additive validation, so old saves and the browser `localStorage`
 mirror (`ashen_veil_progress`) keep working.
+
+## The safe hub
+
+The survivors live in the south-east corner of the existing Level 01 village,
+around the authored spawn `(1500,1080)`. The safe zone is a plain rectangle in
+`scripts/village_layout.py`; `scripts/safe_zone.py` is the single source of the
+rule used by the spawner (candidate rejection with a 24 px margin), the combat
+manager (live chasers are pushed out with a 28 px margin and bolts entering the
+zone expire) and interaction. The player spawn is inside the hub, so a fresh run
+starts somewhere no enemy can follow. Two gates at `(1600,890)` and
+`(1600,1230)` keep the main road open to the rest of the village.
+
+Every NPC is defined by a JSON file in `data/npcs/` (id, name, title, position,
+facing, interaction radius, sprite sheet, service and accent colour) and every
+conversation by a JSON file in `data/dialogue/`. `NPCManager` handles animation
+and footprints, `DialogueManager` owns one conversation and its flags, and
+`InteractionManager` picks the nearest *visible* survivor for `G`; if none is
+reachable it falls back to the existing loot pickup. `G` never overwrote Shadow
+Step (`E`) or Eclipse (`F`), and no ability key was added.
+
+| Survivor | Position | Service | Sprite | Prompt |
+| --- | --- | --- | --- | --- |
+| THE MERCHANT | `(1662,1058)` | `shop` | `assets/npcs/merchant.png` (amber) | `G  TRADE` |
+| THE BLACKSMITH | `(1388,1090)` | `blacksmith` | `assets/npcs/blacksmith.png` (copper) | `G  FORGE` |
+| THE VEIL KEEPER | `(1578,966)` | `story` | `assets/npcs/veil_keeper.png` (violet) | `G  TALK` |
+
+Dialogue text, choices and flags come only from data:
+
+- **THE MERCHANT** — "Keep your blade close, wanderer. The living trade coin
+  here. The dead only take." Choices open the shop, ask what happened here
+  (`merchant_rumor` flag on the last page) or leave.
+- **THE BLACKSMITH** — "Steel remembers every hand that held it. Bring me a
+  blade or plate, and I will make it remember yours." Choices open the forge or
+  explain the five binding passes.
+- **THE VEIL KEEPER** — "You carry the smell of the Veil. It clings like smoke
+  to a funeral coat." Choices branch through what the Veil is, the Hollow
+  Forest (`hollow_forest_hint`) and what lies beyond (`veil_keeper_lore`).
+  Her hints deliberately stop at a dungeon of stone and a black-thorn throne;
+  she never opens Level 02. A separate `quest_flags` map is ready for a future
+  quest system.
+
+### Merchant
+
+`data/shops/merchant_stock.json` is the catalogue; `ShopManager` validates
+every transaction against the real `InventoryManager` (gold, stock, capacity,
+level requirement and equipped protection). Unique equipment has `stock: 1`;
+consumables and materials are unlimited (`stock: -1`). The sell rate is 50 % of
+base value and the quantity selector is capped at 10. Buys and sells ask for
+confirmation and report insufficient gold, sold-out stock or an equipped item
+with a notification.
+
+| Category | Item | Price | Stock |
+| --- | --- | ---: | --- |
+| WEAPONS | RUSTED BLADE | 48 | 1 |
+| WEAPONS | ASHFANG SABER | 168 | 1 |
+| WEAPONS | VEILCLEAVER | 504 | 1 |
+| ARMOR | TRAVELER'S HOOD | 72 | 1 |
+| ARMOR | ASHPLATE ARMOR | 108 | 1 |
+| ARMOR | WARDEN'S HELM | 216 | 1 |
+| ACCESSORIES | BONE RING | 102 | 1 |
+| ACCESSORIES | ASHEN PENDANT | 96 | 1 |
+| ACCESSORIES | WARDEN TALISMAN | 264 | 1 |
+| CONSUMABLES | MINOR HEALTH POTION | 42 | ∞ |
+| CONSUMABLES | VOID POTION | 66 | ∞ |
+| MATERIALS | ASH SHARD | 15 | ∞ |
+| MATERIALS | GUARDIAN EMBER | 108 | ∞ |
+
+### Blacksmith
+
+`data/blacksmith/upgrades.json` defines eligible slots (weapon, helmet, armor,
+gloves, boots), per-slot stat steps and the cost table. `BlacksmithManager`
+stores levels keyed by the real item ID, so Phase 6's unique equipment model
+prevents duplicate bonuses. The preview rows come from the same effective-item
+builder used for live stats, and a successful forge keeps identity, rarity and
+invested gold intact. Resale returns half the invested gold.
+
+| Level | Gold | Materials |
+| --- | ---: | --- |
+| +1 | 80 | 2 ASH SHARD |
+| +2 | 160 | 4 ASH SHARD |
+| +3 | 300 | 3 ASH SHARD, 1 GUARDIAN EMBER |
+| +4 | 520 | 5 ASH SHARD, 2 GUARDIAN EMBER |
+| +5 | 820 | 8 ASH SHARD, 3 GUARDIAN EMBER |
+
+Each level adds: weapon `+2 attack, +0.01 crit`; helmet `+1 defense, +4 max
+HP`; armor `+2 defense, +6 max HP`; gloves `+1 attack, +1 defense`; boots
+`+1 defense, +2 speed`. `EquipmentManager` applies the effective stats once,
+so recomputing or re-equipping can never double a bonus.
 
 ## Combat tuning
 
@@ -352,15 +468,30 @@ All values live in `scripts/skill_config.py`.
   "levels": {
     "01": {"completed": true, "boss_defeated": true, "stages_cleared": 4}
   },
-  "player": {"level": 7}
+  "player": {"level": 7},
+  "inventory": {"gold": 120, "capacity": 28, "items": [], "equipped": {}},
+  "npc_state": {
+    "merchant": {"talked": false, "interactions": 0},
+    "blacksmith": {"talked": false, "interactions": 0},
+    "veil_keeper": {"talked": false, "interactions": 0}
+  },
+  "dialogue": {"seen": [], "flags": {}},
+  "shop": {"purchases": {}},
+  "upgrades": {"levels": {}},
+  "quest_flags": {}
 }
 ```
 
+- Phase 6 added `inventory`, Phase 7 added the extended `player` fields and
+  Phase 8 added `npc_state`, `dialogue`, `shop`, `upgrades` and `quest_flags`.
+  The version stays **1**: every new section is additive, and a profile written
+  by any earlier phase loads with clean defaults for the missing parts.
 - Loading canonicalises every field: a missing file, empty file, truncated
-  JSON, wrong root type, junk level entry, negative stage count or out-of-range
-  player level all fall back to safe values. Writes are atomic (temporary file
-  then replace) and return a boolean; the victory screen reports a failed save
-  instead of pretending it succeeded.
+  JSON, wrong root type, junk level entry, negative stage count, out-of-range
+  player level, unknown NPC/dialogue/item IDs, negative counters and forge
+  levels above `+5` all fall back to safe values. Writes are atomic (temporary
+  file then replace) and return a boolean; the victory screen reports a failed
+  save instead of pretending it succeeded.
 
 ## The Hollow Guardian
 
@@ -458,7 +589,14 @@ Build without starting the test server:
 python -m pygbag --build --title "ASHEN VEIL" .
 ```
 
-The result is written to `build/web/`. For an itch.io-style archive:
+The result is written to `build/web/`. To serve an existing build without
+Pygbag:
+
+```bash
+python -m http.server 8765 --directory build/web
+```
+
+Then open **http://localhost:8765**. For an itch.io-style archive:
 
 ```bash
 python -m pygbag --archive --title "ASHEN VEIL" .
@@ -492,9 +630,16 @@ save/progress.json          Desktop progression profile (created on first victor
 assets/
   characters/               Original player sheet + frame metadata
   enemies/                  Fallen Knight sheet + animation metadata (generated)
+  npcs/                     Three 256×256 survivor sheets derived from player art
   environment/              Original concept atlas and manifest (source only)
   sliced/                   85 named sprites cut from the atlas + manifest.json
   generated/ground.png      Baked 3200×2400 ground texture
+
+data/                       All Phase 8 content (no gameplay code edits to retheme)
+  npcs/                     Survivor identities, positions and sprites
+  dialogue/                 Merchant, blacksmith and Veil Keeper conversations
+  shops/merchant_stock.json Priced/categorised catalogue and sell settings
+  blacksmith/upgrades.json  Slot stat steps, cost table and max level
 
 scripts/
   asset_loader.py           Manifest/image/ground/enemy/shadow loading and caching
@@ -521,8 +666,15 @@ scripts/
   combat_ui.py              Combo counter, crit flash, enemy bars and the death veil
   collision.py              Prop footprints, spatial hash, sliding movement
   camera.py                 Smooth clamped camera and world→screen conversion
-  village_layout.py         Canonical roads, patches, props, lights, spawn, arena
-  world.py                  Prop instances, culling, Y-sorting, ground blit, arena floor
+  village_layout.py         Roads, patches, props, lights, safe zone, spawn, arena
+  safe_zone.py              Shared containment and push-out rules for the hub
+  world.py                  Prop/NPC/enemy/player Y-sorting, ground blit, arena floor
+  village_data.py           Defensive read-only loader for the Phase 8 data files
+  npc_manager.py            Idle animation, facing, prompts and NPC foot boxes
+  interaction_manager.py    Contextual G targeting with line-of-sight checks
+  dialogue_manager.py       Pages, choices, flags, seen IDs and keyboard actions
+  shop_manager.py           Validated buys/sells, limited stock, gold and pricing
+  blacksmith_manager.py     +0..+5 levels, costs, previews and effective items
   atmosphere.py             Night overlay, glows, fog, ash, motes, dust, vignette
   hud.py                    Compact HP/Void/dash bars, help, intro and stage/boss HUD
   pixel_font.py             5×7 bitmap font and text renderer
@@ -542,18 +694,25 @@ scripts/
     boss_hud.py             620×64 guardian bar, phase pips and phase banner
     stage_hud.py            Compact stage/objective panel, pips and stage banner
     victory_screen.py       Victory overlay with Continue and Return buttons
+    dialogue_screen.py      Sprite portrait, text, choices and selection glow
+    merchant_screen.py      Buy/sell tabs, categories, prices and confirmations
+    blacksmith_screen.py    Eligible gear, stat previews, costs and confirmation
     ui_common.py            Shared panels, buttons, chips and text wrapping
 
 tools/                      Development only (not shipped to the web build)
   slice_assets.py           Re-cuts the source atlas into assets/sliced/
   bake_ground.py            Rebakes assets/generated/ground.png
-  preview.py                Headless landmark, combat, skill and Phase 5 screenshots
+  generate_npc_sprites.py   Recolours player frames into the survivor sheets
+  preview.py                Headless landmark, combat, skill and phase previews
   bench.py                  Headless draw benchmark (exploration/combat/skills)
   test_combat.py            Headless Phase 1–4 baseline (211 assertions)
   test_phase5.py            Headless Phase 5 acceptance suite (252 assertions)
+  test_phase6.py            Headless Phase 6 inventory/loot suite (138 assertions)
+  test_phase7.py            Headless Phase 7 progression suite (123 assertions)
+  test_phase8.py            Headless Phase 8 safe-hub suite (143 assertions)
   generate_fallen_knight.py Regenerates the Fallen Knight sheet
 
-screenshots/                Landmark, combat, skill and phase5_* preview renders
+screenshots/                Landmark, combat, skill and phase5–8 preview renders
 ```
 
 ## Rebuilding art (optional)
@@ -610,6 +769,49 @@ roads, plaza and static light pools stay aligned with props and collision.
   then reused by every instance.
 
 ## Verification
+
+### Phase 8 acceptance suite
+
+`python tools/test_phase8.py` runs **143** headless assertions in eleven
+sections. It isolates its own temporary `ASHEN_VEIL_SAVE`, so no real profile is
+read or written:
+
+1. **Source tree and data** — every module, NPC/dialogue/stock/forge JSON file,
+   the campfire manifest entry, the new states and `G` routing in `main.py`, and
+   the unchanged `E`/`F` bindings.
+2. **Sprites and hub art** — three distinct 256×256 4×4 sheets, cached loading
+   and the campfire asset.
+3. **Safe-zone geometry** — rectangle bounds, spawn/center containment,
+   `push_out`, spawner rejection and live-chaser expulsion.
+4. **NPCs** — exact positions, prompts, accents, collision footprints, reach,
+   wall blocking and facing the player.
+5. **Dialogue** — missing-ID safety, choices, original text, keyboard and mouse
+   navigation, page flags and close routing.
+6. **Merchant** — 13 stock entries in 5 categories, prices, limited/unlimited
+   stock, gold deduction, sold-out/insufficient-gold/unknown-item refusals, sell
+   value, quantity removal and equipped-item protection.
+7. **Blacksmith** — `+0..+5` bound, every gold/material cost, eligibility, exact
+   stat steps, identity/rarity preservation, preview accuracy, max-level refusal
+   and no double-applied bonuses.
+8. **Veil Keeper** — unique dialogue, `G` interaction, NPC counters, both story
+   flags, a forward-compatible quest flag and Level 02 still locked.
+9. **Save** — all five additive sections, version 1, legacy-save defaults, junk
+   clamping and a full save/reload round trip including forged gear.
+10. **Existing systems** — level unlocks, equipment, item comparison, EXP,
+    skill-tree purchases, combat ticks and a full draw with NPCs present.
+11. **Web archive** — the built `game.tar.gz` ships every Phase 8 module, data
+    file and sprite while still excluding `tools/`.
+
+### Other suites
+
+- `python tools/test_phase5.py` — **252** assertions (level flow, boss, HUD,
+  victory and UI).
+- `python tools/test_phase6.py` — **138** assertions (inventory, loot, equipment
+  and character stats).
+- `python tools/test_phase7.py` — **123** assertions (EXP, attributes, skill
+  tree and progression saves).
+- `python tools/test_combat.py` — **211** assertions (Phase 1–4 combat baseline)
+  with its own isolated temporary save.
 
 ### Phase 5 acceptance suite
 
@@ -706,15 +908,21 @@ Also verified:
   `phase5_boss_intro.png`, `phase5_boss_phase1.png`,
   `phase5_boss_phase2.png`, `phase5_boss_phase3.png`,
   `phase5_boss_death.png` and `phase5_victory.png`).
+- Phase 6/7/8 views are also rendered into `screenshots/`: the inventory and
+  world loot, character sheet, skill tree and level-up, plus
+  `phase8_safe_hub.png`, `phase8_veil_keeper_dialogue.png`,
+  `phase8_merchant.png` and `phase8_blacksmith.png`. All Phase 8 shots are
+  1280×720 and non-blank.
 - `python tools/bench.py` completes all three scenarios and reports the
   draw-phase timings above; the skill and combat effect lists stay within
   their caps.
 - `python -m compileall -q scripts main.py settings.py tools` completes without
   errors.
-- `python -m pygbag --build --title "ASHEN VEIL" .` produces a 147-file browser
-  build in `build/web/` without `tools/`, `screenshots/`, the source atlas or
-  any local save profile; serving that directory returns `index.html`,
-  `game.tar.gz` and `game.apk` with HTTP 200 (archive ≈ 7.8 MB).
+- `python -m pygbag --build --title "ASHEN VEIL" .` produces a 193-file browser
+  archive in `build/web/game.tar.gz` without `tools/`, `screenshots/`, the
+  source atlas or any local save profile; serving that directory returns
+  `index.html`, `game.tar.gz` and `game.apk`. The archive ships all Phase 8
+  modules, data files and survivor sprites.
 - A live interactive browser session (real input, audio, canvas display) still
   needs a manual check in your own browser; this environment cannot verify
   actual in-browser behaviour. The async loop, event handlers and rendering
@@ -735,6 +943,11 @@ Also verified:
   have one art set per archetype rather than per-direction attack variants.
 - No new frames were invented for the player. The knight sheet is generated
   from code in `tools/generate_fallen_knight.py`, not reused player art.
+- The three survivor sheets are recoloured/accessorised copies of the existing
+  player frames, generated by `tools/generate_npc_sprites.py`. They are real
+  256×256 4×4 directional sheets (not coloured rectangles), but they inherit the
+  player's silhouette and have no bespoke walk or gesture animations beyond the
+  shared idle cycle.
 - **THE HOLLOW GUARDIAN has no source sheet.** All twelve actions (`idle`,
   `walk`, `windup`, `sweep`, `slam`, `combo`, `wave`, `charge`, `hurt`,
   `death`, `roar`, `victory`) are drawn procedurally into 112 px frames in
@@ -747,17 +960,18 @@ Also verified:
 - Levels 02–04 have atmospheric preview dioramas baked by
   `scripts/ui/preview_art.py`; they are selection art, not playable maps.
 - The project currently has **no audio system or sound assets**. Enemy attacks,
-  bolts, the guardian's slams and ground blasts, and the Void skills therefore
-  have distinct visuals, timings, camera shake and hit stop, but no sound
-  effects were added; adding audio would require a new mixer module and assets,
-  which is outside this phase.
+  bolts, the guardian's slams and ground blasts, the Void skills and the Phase 8
+  dialogue/trade/forge cues therefore have distinct visuals, timings, camera
+  shake and hit stop, but no sound effects were added; the cue hooks are guarded
+  no-ops until audio files exist. Adding a mixer and assets is outside this
+  phase.
 
 ## Remaining issues
 
 - In-browser behaviour (real input focus, audio, actual frame pacing) still
   needs a manual session in a real browser; the headless suite cannot prove it.
-  The Phase 5 screens are rendered in `screenshots/` and can be reviewed, but
-  boss feel and difficulty still want a human playthrough.
+  The Phase 5–8 screens are rendered in `screenshots/` and can be reviewed, but
+  boss feel, hub navigation and difficulty still want a human playthrough.
 - The cultist's bolt is a simple circle with a glow, not a fully animated
   sprite, and all three archetypes share the same eight-direction facing model.
 - Enemy art is intentionally limited to one procedural set per new archetype;
@@ -767,7 +981,12 @@ Also verified:
   mesh or dynamic spawn placement is out of scope for this phase.
 - Levels 02–04 are deliberately selection entries only: their names, previews,
   lore, bosses and lock states exist, but no maps or encounters are generated.
-- There is still no inventory, quest system or additional boss encounter.
+  The Veil Keeper only foreshadows the Hollow Forest; she never unlocks Level 02.
+- There is still no formal quest system. The safe hub stores NPC conversation
+  state, dialogue flags and a generic `quest_flags` map, but nothing consumes
+  them yet beyond the existing unlock chain.
+- The forge only upgrades existing weapons/armor (`+0..+5`); it does not craft
+  new items, repair durability (there is no durability) or add sockets.
 - Browser saves are best-effort: the JSON file may live in an in-memory
   filesystem, so `localStorage` is the durable mirror. A browser with storage
   disabled can still play but will not remember unlocks after a refresh.

@@ -75,6 +75,7 @@ def main() -> None:
     phase5_shots(game, out)
     phase6_shots(game, out)
     phase7_shots(game, out)
+    phase8_shots(game, out)
     shutil.rmtree(_PREVIEW_SAVE_DIR, ignore_errors=True)
     pygame.quit()
 
@@ -516,6 +517,65 @@ def phase7_shots(game, out: Path) -> None:
     ]
     _save(game, out, "phase7_level_up",
           "level-up burst, hit stop and polished notification")
+
+
+def phase8_shots(game, out: Path) -> None:
+    """The safe hub, its three survivors and the three village overlays."""
+    from main import BLACKSMITH, DIALOGUE, PLAY, SHOP
+
+    # Fresh stage-1 village; the safe corner is part of the same world.
+    game.start_level("01")
+    game.state = PLAY
+    game.hud.time = 9.0
+    game.level.banner_timer = 0.0
+    game.loot.clear()
+    game.notifications.items.clear()
+    game.inventory.gold = 2400
+    game.inventory.entries.clear()
+    for item_id in (
+        "rusted_blade", "ashplate_armor", "minor_health_potion",
+        "ash_shard", "guardian_ember",
+    ):
+        game.inventory.add(item_id, 4 if item_id in ("ash_shard",) else 1)
+    game.inventory.add("guardian_ember", 2)
+
+    # Shot 1: the hub itself with the campfire, lanterns and a G prompt.
+    keeper = game.npcs.get("veil_keeper")
+    _idle_player(game, keeper.x, keeper.y + 58, "up")
+    for _ in range(3):
+        game.update(1 / 60)
+    _save(game, out, "phase8_safe_hub",
+          "ruined houses, stall, forge, shrine and the three survivors")
+
+    # Shot 2: Veil Keeper conversation with a real sprite portrait.
+    game.open_dialogue(keeper)
+    game.dialogue_screen.reveal = 1.0
+    game.dialogue_screen.time = 2.0
+    _save(game, out, "phase8_veil_keeper_dialogue",
+          "story dialogue with choices and sprite portrait")
+
+    # Shot 3: merchant trade screen with gold, categories and priced stock.
+    game.close_dialogue()                 # back to PLAY before re-opening
+    merchant = game.npcs.get("merchant")
+    game.open_dialogue(merchant)
+    game._route_dialogue_action(game.dialogue.choose(0))
+    game.merchant_screen.reveal = 1.0
+    game.merchant_screen.time = 2.0
+    _save(game, out, "phase8_merchant",
+          "buy and sell categories with descriptions, rarity and prices")
+
+    # Shot 4: forge with a real item, current/preview stats and costs.
+    game.close_shop()
+    game.equipment.equip("rusted_blade")
+    blacksmith = game.npcs.get("blacksmith")
+    game.open_dialogue(blacksmith)
+    game._route_dialogue_action(game.dialogue.choose(0))
+    game.blacksmith_screen.reveal = 1.0
+    game.blacksmith_screen.time = 2.0
+    _save(game, out, "phase8_blacksmith",
+          "eligible gear with stat preview, gold and material costs")
+    game.close_forge()
+    assert game.state == PLAY
 
 
 if __name__ == "__main__":

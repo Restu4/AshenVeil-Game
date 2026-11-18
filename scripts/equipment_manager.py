@@ -27,12 +27,14 @@ class EquipmentManager:
         self.notify = notify
         self.skills = None
         self.combat = None
+        self.upgrades = None
         self.equipped: dict[str, str | None] = {
             slot: None for slot in self.SLOTS
         }
 
     # ------------------------------------------------------------------
-    def attach(self, skills=None, combat=None, notify=None) -> None:
+    def attach(self, skills=None, combat=None, notify=None,
+               upgrades=None) -> None:
         """Late-bind the systems that must follow stat changes."""
         if skills is not None:
             self.skills = skills
@@ -40,6 +42,8 @@ class EquipmentManager:
             self.combat = combat
         if notify is not None:
             self.notify = notify
+        if upgrades is not None:
+            self.upgrades = upgrades
         self.recompute()
 
     def _say(self, text: str) -> None:
@@ -48,6 +52,16 @@ class EquipmentManager:
 
     # ------------------------------------------------------------------
     def equipped_item(self, slot: str) -> ItemDef | None:
+        """The effective item: forge bonuses and ``+N`` are already applied."""
+        item_id = self.equipped.get(slot)
+        item = get_item(item_id) if item_id else None
+        if item is not None and self.upgrades is not None:
+            effective = self.upgrades.effective_item(item)
+            return effective if effective is not None else item
+        return item
+
+    def base_equipped_item(self, slot: str) -> ItemDef | None:
+        """The untouched catalog definition (identity, rarity, base stats)."""
         item_id = self.equipped.get(slot)
         return get_item(item_id) if item_id else None
 
@@ -117,8 +131,12 @@ class EquipmentManager:
         self.stats.level = self.player.level
         self.stats.reset()
         for slot in self.SLOTS:
-            item = self.equipped_item(slot)
+            item = self.base_equipped_item(slot)
             if item is not None and item.is_equipment and item.slot == slot:
+                if self.upgrades is not None:
+                    # One authoritative conversion from base stats to the
+                    # forged stats; a bonus can never be applied twice.
+                    item = self.upgrades.effective_item(item) or item
                 self.stats.apply(item)
         self.stats.level = self.player.level
         self.stats.clamp()
@@ -145,10 +163,14 @@ class EquipmentManager:
 
     # ------------------------------------------------------------------
     def comparison(self, item: ItemDef) -> list[tuple[str, float]]:
-        """Deltas of ``item`` against what that slot currently provides."""
+        """Deltas of ``item`` against the *effective* gear in that slot."""
         if item is None or not item.is_equipment:
             return []
-        current = self.equipped_item(item.slot)
+        if self.upgrades is not None:
+            item = self.upgrades.effective_item(item) or item
+        current = self.base_equipped_item(item.slot)
+        if current is not None and self.upgrades is not None:
+            current = self.upgrades.effective_item(current) or current
         result: list[tuple[str, float]] = []
         for key in STAT_KEYS:
             delta = item.stats.get(key, 0.0) - (

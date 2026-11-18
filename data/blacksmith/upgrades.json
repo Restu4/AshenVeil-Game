@@ -1,0 +1,19 @@
+{
+  "id": "blacksmith",
+  "max_level": 5,
+  "allowed_slots": ["weapon", "helmet", "armor", "gloves", "boots"],
+  "stat_steps": {
+    "weapon": {"attack": 2, "crit_chance": 0.01},
+    "helmet": {"defense": 1, "max_hp": 4},
+    "armor": {"defense": 2, "max_hp": 6},
+    "gloves": {"attack": 1, "defense": 1},
+    "boots": {"defense": 1, "speed": 2}
+  },
+  "levels": [
+    {"level": 1, "gold": 80, "materials": {"ash_shard": 2}},
+    {"level": 2, "gold": 160, "materials": {"ash_shard": 4}},
+    {"level": 3, "gold": 300, "materials": {"ash_shard": 3, "guardian_ember": 1}},
+    {"level": 4, "gold": 520, "materials": {"ash_shard": 5, "guardian_ember": 2}},
+    {"level": 5, "gold": 820, "materials": {"ash_shard": 8, "guardian_ember": 3}}
+  ]
+}

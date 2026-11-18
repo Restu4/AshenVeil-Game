@@ -1,0 +1,28 @@
+{
+  "id": "merchant",
+  "pages": [
+    {
+      "text": "Keep your blade close, wanderer. The living trade coin here. The dead only take.",
+      "choices": [
+        {"label": "SHOW ME YOUR WARES", "action": "open_shop"},
+        {"label": "WHAT HAPPENED HERE?", "next": 1},
+        {"label": "LEAVE", "action": "close"}
+      ]
+    },
+    {
+      "text": "One night the well went black. By morning, half the village were knocking on their own doors.",
+      "choices": [
+        {"label": "AND THE OLD SHRINE?", "next": 2},
+        {"label": "BACK", "next": 0}
+      ]
+    },
+    {
+      "text": "The shrine breathes now. The keeper hears it better than I do. Buy what you can carry and go before dusk.",
+      "action": {"kind": "set_flag", "flag": "merchant_rumor", "value": true},
+      "choices": [
+        {"label": "BACK", "next": 0},
+        {"label": "LEAVE", "action": "close"}
+      ]
+    }
+  ]
+}

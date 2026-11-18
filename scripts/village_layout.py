@@ -74,6 +74,19 @@ ARENA_BOSS_BOUNDS = (2356.0, 252.0, 2920.0, 676.0)
 # player, keeping both fighters and the whole boss readable on screen.
 ARENA_CAMERA_LIFT = 300.0
 
+# ---------------------------------------------------------------------------
+# Phase 8: the survivors' corner of Ashen Village.  It is an authored part of
+# the same settlement (the old market road), not a procedurally generated map.
+# The rectangle only drives spawn/AI protection: the player may walk through
+# the gaps in the fence line to reach the dangerous roads beyond it.
+# ---------------------------------------------------------------------------
+SAFE_ZONE_X0, SAFE_ZONE_Y0 = 1320.0, 890.0
+SAFE_ZONE_X1, SAFE_ZONE_Y1 = 1740.0, 1230.0
+SAFE_ZONE_RECT = (SAFE_ZONE_X0, SAFE_ZONE_Y0, SAFE_ZONE_X1, SAFE_ZONE_Y1)
+SAFE_ZONE_CENTER = (1530.0, 1060.0)
+SAFE_ZONE_SOUTH_GATE = (1600.0, 1230.0)
+SAFE_ZONE_NORTH_GATE = (1600.0, 890.0)
+
 
 def _inside_arena(x: float, y: float, pad: float = 70.0) -> bool:
     return (ARENA_X0 - pad <= x <= ARENA_X1 + pad
@@ -240,6 +253,56 @@ CORE_PROPS: list[Prop] = [
 ]
 
 # ---------------------------------------------------------------------------
+# The village hub.  Every piece is sliced from the existing environment atlas;
+# the only new prop is the small campfire drawn from the same muted palette.
+# ---------------------------------------------------------------------------
+HUB_PROPS: list[Prop] = [
+    # Two leaning houses frame the old market road.
+    Prop("house_long", 1390, 930, True, 0.52),
+    Prop("house_timber", 1694, 934, False, 0.46),
+    # Merchant stall: a cart, a sign and whatever the survivors could salvage.
+    # Kept a little north of the merchant so the eastward market road from the
+    # spawn stays clear for ordinary movement.
+    Prop("cart", 1704, 1036, True),
+    Prop("signpost", 1748, 1032),
+    Prop("crate_a", 1740, 1110),
+    Prop("crate_b", 1730, 1160),
+    Prop("barrel_b", 1610, 1144),
+    # Blacksmith workshop built against the ruined wall.
+    Prop("stone_wall", 1338, 1062),
+    Prop("woodpile", 1362, 1120),
+    Prop("logs", 1350, 1170),
+    Prop("barrel_d", 1308, 1120),
+    Prop("crate_c", 1420, 1120),
+    Prop("lamp_post", 1320, 1000),
+    # Ancient shrine where the Veil Keeper keeps watch.
+    Prop("shrine", 1578, 934),
+    Prop("stone_pillar", 1508, 948),
+    Prop("stone_pillar", 1650, 948),
+    Prop("grave_cross_b", 1516, 1000),
+    Prop("grave_cross_b", 1642, 1000, True),
+    # Broken fences.  The north and south gaps are the clear way in and out.
+    Prop("fence_rail_b", 1360, 900),
+    Prop("fence_rail_b", 1470, 900),
+    Prop("fence_rail_b", 1690, 900),
+    Prop("fence_rail_b", 1340, 1220),
+    Prop("fence_rail_b", 1450, 1220),
+    Prop("fence_rail_b", 1650, 1220),
+    Prop("fence_rail_b", 1740, 1220, True),
+    Prop("fence_a", 1310, 1020),
+    Prop("fence_b", 1750, 1150, True),
+    # Campfire, market clutter and purple lantern light.
+    Prop("campfire", 1520, 1158),
+    Prop("barrel_a", 1460, 1160),
+    Prop("crate_d", 1580, 1160),
+    Prop("lantern_tall", 1330, 980),
+    Prop("lantern_tall", 1730, 980),
+    Prop("lantern_tall", 1500, 1210),
+    Prop("lantern_tall", 1660, 1210),
+]
+
+
+# ---------------------------------------------------------------------------
 # Ruined shrine arena — a sealed ring of broken masonry around the guardian.
 # The interior stays deliberately clear: the boss needs room, and every attack
 # telegraph must read against empty stone.
@@ -381,6 +444,7 @@ FOREST_PROPS: list[Prop] = _forest_ring()
 
 ALL_PROPS: list[Prop] = (
     _outside_arena(CORE_PROPS)
+    + HUB_PROPS
     + ARENA_PROPS
     + _outside_arena(SCATTER_PROPS)
     + _outside_arena(FOREST_PROPS)
@@ -415,6 +479,16 @@ LIGHTS: list[Light] = [
     Light(2638, 286, 360, (196, 112, 255), 0.58, 0.26, 2.4),
     Light(2638, 520, 420, (108, 62, 176), 0.28, 0.08, 5.7),
 ]
+
+# Subtle violet lantern pools and a low campfire glow around the safe zone.
+LIGHTS.extend([
+    Light(1330, 960, 230, (150, 104, 226), 0.46, 0.12, 1.1),
+    Light(1730, 960, 230, (150, 104, 226), 0.46, 0.12, 3.4),
+    Light(1500, 1190, 210, (148, 108, 216), 0.40, 0.10, 2.2),
+    Light(1660, 1190, 210, (148, 108, 216), 0.40, 0.10, 5.0),
+    Light(1520, 1140, 180, (204, 108, 128), 0.44, 0.22, 0.7),
+    Light(1578, 908, 240, (176, 112, 244), 0.42, 0.14, 4.1),
+])
 
 SPAWN = (1500.0, 1080.0)
 SPAWN_FACING = "down"

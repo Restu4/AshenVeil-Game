@@ -1,0 +1,13 @@
+{
+  "id": "blacksmith",
+  "name": "THE BLACKSMITH",
+  "title": "FORGE AND REPAIR",
+  "x": 1388.0,
+  "y": 1090.0,
+  "facing": "right",
+  "radius": 82.0,
+  "sheet": "npcs/blacksmith.png",
+  "service": "blacksmith",
+  "dialogue": "blacksmith",
+  "accent": [214, 132, 92]
+}

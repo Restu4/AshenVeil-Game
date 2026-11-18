@@ -28,11 +28,17 @@ import math
 import os
 import sys
 import tarfile
+import tempfile
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+# Never read a real desktop profile: combat damage and attributes must start
+# from the tuned level-1 baseline, just like every other phase suite.
+_TEST_SAVE = Path(tempfile.mkdtemp(prefix="ashen_veil_combat_")) / "progress.json"
+_TEST_SAVE.unlink(missing_ok=True)
+os.environ["ASHEN_VEIL_SAVE"] = str(_TEST_SAVE)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -584,11 +590,13 @@ def main() -> None:
     game.restart()
     game.combat.crit_chance = 0.0
     player = game.player
-    player.x, player.y = 1500.0, 1200.0
+    # Open ground south of the safe hub: an enemy placed inside the hub would
+    # correctly be expelled by its hostile-exclusion rule before it can chase.
+    player.x, player.y = OPEN_GROUND
     knight = knight_of(game)
     park_all(game, keep=knight)
-    knight.x = knight.home_x = 1650.0
-    knight.y = knight.home_y = 1200.0
+    knight.x = knight.home_x = player.x + 150.0
+    knight.y = knight.home_y = player.y
     knight.state = enemy_ai.IDLE
     knight.aggro_timer = 0.0
     knight.attack_cooldown = 5.0

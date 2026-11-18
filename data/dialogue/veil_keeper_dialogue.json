@@ -1,0 +1,36 @@
+{
+  "id": "veil_keeper",
+  "pages": [
+    {
+      "text": "You carry the smell of the Veil. It clings like smoke to a funeral coat.",
+      "choices": [
+        {"label": "WHAT IS THE VEIL?", "next": 1},
+        {"label": "I SEEK THE HOLLOW FOREST", "next": 2},
+        {"label": "LEAVE", "action": "close"}
+      ]
+    },
+    {
+      "text": "A wound in the world, older than this village. The first keepers stitched it with names. We have forgotten half the thread.",
+      "choices": [
+        {"label": "AND THE GUARDIAN?", "next": 3},
+        {"label": "BACK", "next": 0}
+      ]
+    },
+    {
+      "text": "The forest drinks root and memory. Its paths open only when the village's own dead are laid back to sleep.",
+      "action": {"kind": "set_flag", "flag": "hollow_forest_hint", "value": true},
+      "choices": [
+        {"label": "WHAT LIES BEYOND IT?", "next": 3},
+        {"label": "BACK", "next": 0}
+      ]
+    },
+    {
+      "text": "A dungeon of stone that remembers, then a throne grown from one black thorn. That is all the veil permits me to say.",
+      "action": {"kind": "set_flag", "flag": "veil_keeper_lore", "value": true},
+      "choices": [
+        {"label": "BACK", "next": 0},
+        {"label": "LEAVE", "action": "close"}
+      ]
+    }
+  ]
+}

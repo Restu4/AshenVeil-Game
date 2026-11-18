@@ -115,6 +115,15 @@ class CollisionWorld:
                     self.grid[(gx, gy)].append(index)
 
     # ------------------------------------------------------------------
+    def add_rect(self, rect: pygame.Rect) -> None:
+        """Register a late-bound solid (NPC footprint) in the spatial hash."""
+        index = len(self.rects)
+        self.rects.append(rect)
+        for gy in range(rect.top // self.CELL, rect.bottom // self.CELL + 1):
+            for gx in range(rect.left // self.CELL, rect.right // self.CELL + 1):
+                self.grid[(gx, gy)].append(index)
+
+    # ------------------------------------------------------------------
     def nearby(self, rect: pygame.Rect) -> list[pygame.Rect]:
         found: set[int] = set()
         x0 = rect.left // self.CELL

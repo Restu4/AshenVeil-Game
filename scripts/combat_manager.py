@@ -31,6 +31,7 @@ from scripts.combat_config import (
 from scripts.enemy import Enemy
 from scripts.progression_config import enemy_tier
 from scripts.projectile import ProjectileSystem
+from scripts.safe_zone import contains as in_safe_zone, push_out
 from scripts.spawner import Spawner
 
 
@@ -122,10 +123,16 @@ class CombatManager:
 
         for enemy in self.enemies:
             enemy.update(dt, player, collision)
+        self._enforce_safe_zone()
         self._consume_enemy_signals()
 
         self.enemies[:] = [e for e in self.enemies if not e.removed]
         self.projectiles.update(dt, player, collision)
+        # A stray bolt expires at the fence instead of reaching the survivors.
+        self.projectiles.projectiles[:] = [
+            p for p in self.projectiles.projectiles
+            if not in_safe_zone(p.x, p.y, 0.0)
+        ]
         self._separate_enemies(collision)
         self.spawner.update(dt)
 
@@ -135,6 +142,21 @@ class CombatManager:
             self.camera.shake(SHAKE_PLAYER_HURT, SHAKE_PLAYER_HURT_TIME)
 
         self._update_engagement(dt)
+
+    # ------------------------------------------------------------------
+    def _enforce_safe_zone(self) -> None:
+        """Hostiles never remain inside the village hub, even while chasing."""
+        for enemy in self.enemies:
+            if not enemy.alive or not in_safe_zone(enemy.x, enemy.y, 8.0):
+                continue
+            enemy.x, enemy.y = push_out(enemy.x, enemy.y, 28.0)
+            if hasattr(enemy, "home_x"):
+                enemy.home_x = enemy.x
+            if hasattr(enemy, "home_y"):
+                enemy.home_y = enemy.y
+            if hasattr(enemy, "aggro_timer"):
+                enemy.aggro_timer = 0.0
+            enemy.vx = enemy.vy = 0.0
 
     # ------------------------------------------------------------------
     def _consume_enemy_signals(self) -> None:

@@ -17,6 +17,7 @@ class Assets:
             (self.root / "sliced" / "manifest.json").read_text(encoding="utf-8")
         )
         self._images: dict[str, pygame.Surface] = {}
+        self._npc_sheets: dict[str, pygame.Surface] = {}
         self._character: pygame.Surface | None = None
         self._ground: pygame.Surface | None = None
         self._enemy_art: dict[str, tuple[pygame.Surface, dict]] = {}
@@ -35,6 +36,18 @@ class Assets:
     def dims(self, name: str) -> tuple[int, int]:
         rect = self.manifest[name]["rect"]
         return rect[2], rect[3]
+
+    def npc_sheet(self, path: str) -> pygame.Surface:
+        """Load a 4x4 Phase 8 NPC idle sheet, cached like every other asset."""
+        key = str(path)
+        sheet = self._npc_sheets.get(key)
+        if sheet is None:
+            relative = key.removeprefix("assets/")
+            sheet = pygame.image.load(
+                str(self.root / relative)
+            ).convert_alpha()
+            self._npc_sheets[key] = sheet
+        return sheet
 
     # ------------------------------------------------------------------
     @property

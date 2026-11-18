@@ -128,6 +128,56 @@ class ProgressionManager:
         return self.save_now()
 
     # ------------------------------------------------------------------
+    # Phase 8: additive village state.  Every accessor re-validates through
+    # canonical_data so a hand-edited or truncated save can never inject an
+    # invalid NPC ID, item ID or unbounded counter into the live managers.
+    # ------------------------------------------------------------------
+    def _village_section(self, key: str):
+        return canonical_data(self.data)[key]
+
+    def npc_state(self) -> dict:
+        return self._village_section("npc_state")
+
+    def dialogue_state(self) -> dict:
+        return self._village_section("dialogue")
+
+    def shop_state(self) -> dict:
+        return self._village_section("shop")
+
+    def upgrade_state(self) -> dict:
+        return self._village_section("upgrades")
+
+    def quest_flags(self) -> dict:
+        return self._village_section("quest_flags")
+
+    def save_village(self, npcs=None, dialogue=None, shop=None,
+                     upgrades=None, quest_flags=None) -> bool:
+        """Persist gold, limited stock, forge levels and story flags.
+
+        All arguments are optional: a caller may save only the section it just
+        changed.  Gold itself is owned by the inventory manager and is already
+        mirrored by ``save_inventory`` via its change callback.
+        """
+        clean = canonical_data(self.data)
+        if npcs is not None and hasattr(npcs, "to_state"):
+            clean["npc_state"] = npcs.to_state()
+        if dialogue is not None:
+            if hasattr(dialogue, "to_state"):
+                clean["dialogue"] = dialogue.to_state()
+            elif isinstance(dialogue, dict):
+                clean["dialogue"] = dialogue
+        if shop is not None and hasattr(shop, "to_state"):
+            clean["shop"] = shop.to_state()
+        if upgrades is not None and hasattr(upgrades, "to_state"):
+            clean["upgrades"] = upgrades.to_state()
+        if quest_flags is not None and isinstance(quest_flags, dict):
+            clean["quest_flags"] = dict(quest_flags)
+        # Re-canonicalise once more so live manager data gets the same bounds
+        # and type checks as data read from disk.
+        self.data = canonical_data(clean)
+        return self.save_now()
+
+    # ------------------------------------------------------------------
     def next_unplayed_level(self) -> str:
         """Best selection after returning from a victory screen."""
         for level in LEVELS:

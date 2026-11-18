@@ -1,0 +1,29 @@
+{
+  "id": "merchant",
+  "settings": {
+    "sell_rate": 0.5,
+    "max_quantity": 10
+  },
+  "categories": [
+    {"id": "weapons", "label": "WEAPONS"},
+    {"id": "armor", "label": "ARMOR"},
+    {"id": "accessories", "label": "ACCESSORIES"},
+    {"id": "consumables", "label": "CONSUMABLES"},
+    {"id": "materials", "label": "MATERIALS"}
+  ],
+  "items": [
+    {"item_id": "rusted_blade", "category": "weapons", "price": 48, "stock": 1},
+    {"item_id": "ashfang_saber", "category": "weapons", "price": 168, "stock": 1},
+    {"item_id": "veilcleaver", "category": "weapons", "price": 504, "stock": 1},
+    {"item_id": "travelers_hood", "category": "armor", "price": 72, "stock": 1},
+    {"item_id": "ashplate_armor", "category": "armor", "price": 108, "stock": 1},
+    {"item_id": "wardens_helm", "category": "armor", "price": 216, "stock": 1},
+    {"item_id": "bone_ring", "category": "accessories", "price": 102, "stock": 1},
+    {"item_id": "ashen_pendant", "category": "accessories", "price": 96, "stock": 1},
+    {"item_id": "warden_talisman", "category": "accessories", "price": 264, "stock": 1},
+    {"item_id": "minor_health_potion", "category": "consumables", "price": 42, "stock": -1},
+    {"item_id": "void_potion", "category": "consumables", "price": 66, "stock": -1},
+    {"item_id": "ash_shard", "category": "materials", "price": 15, "stock": -1},
+    {"item_id": "guardian_ember", "category": "materials", "price": 108, "stock": -1}
+  ]
+}

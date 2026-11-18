@@ -29,6 +29,9 @@ from scripts.progression_config import (
     skill_points_for_level,
 )
 from scripts.skill_tree_config import VALID_NODE_IDS
+from scripts.village_data import (
+    DIALOGUE_IDS, MAX_SAVE_ENTRIES, MAX_UPGRADE_LEVEL, NPC_IDS,
+)
 from settings import BASE_DIR
 
 SAVE_VERSION = 1
@@ -83,6 +86,34 @@ def default_player_data() -> dict:
     }
 
 
+def default_npc_state() -> dict:
+    """Phase 8: one small state record per village NPC."""
+    return {
+        npc_id: {"talked": False, "interactions": 0}
+        for npc_id in NPC_IDS
+    }
+
+
+def default_dialogue_state() -> dict:
+    """Phase 8: seen conversations and persistent story flags."""
+    return {"seen": [], "flags": {}}
+
+
+def default_shop_state() -> dict:
+    """Phase 8: count of limited stock already bought, per item ID."""
+    return {"purchases": {}}
+
+
+def default_upgrade_state() -> dict:
+    """Phase 8: blacksmith levels keyed by real equipment ID."""
+    return {"levels": {}}
+
+
+def default_quest_flags() -> dict:
+    """Phase 8: reserved for future quests; empty in this build."""
+    return {}
+
+
 def default_data() -> dict:
     """A brand new profile: level 1, nothing completed, starter satchel."""
     return {
@@ -91,6 +122,12 @@ def default_data() -> dict:
         "player": default_player_data(),
         "inventory": default_inventory_data(),
         "defeated_enemies": [],
+        # Additive Phase 8 village state.  Older saves simply omit these keys.
+        "npc_state": default_npc_state(),
+        "dialogue": default_dialogue_state(),
+        "shop": default_shop_state(),
+        "upgrades": default_upgrade_state(),
+        "quest_flags": default_quest_flags(),
     }
 
 
@@ -217,6 +254,102 @@ def _clean_defeated(raw) -> list[str]:
     return clean
 
 
+def _clean_count(value, low: int = 0, high: int = 9999) -> int:
+    """Integer clamp that also rejects NaN/Infinity from hand-edited saves."""
+    number = _number(value, 0.0)
+    if number != number or number in (float("inf"), float("-inf")):
+        return low
+    return max(low, min(high, int(number)))
+
+
+def _clean_npc_state(raw) -> dict:
+    """Keep only known NPC IDs and bounded counters."""
+    clean = default_npc_state()
+    if not isinstance(raw, dict):
+        return clean
+    for npc_id in NPC_IDS:
+        entry = raw.get(npc_id)
+        if not isinstance(entry, dict):
+            continue
+        clean[npc_id]["talked"] = bool(entry.get("talked", False))
+        clean[npc_id]["interactions"] = _clean_count(
+            entry.get("interactions", 0), 0, 9999
+        )
+    return clean
+
+
+def _clean_dialogue_state(raw) -> dict:
+    """Validate seen IDs and story flags without trusting the file shape."""
+    clean = default_dialogue_state()
+    if not isinstance(raw, dict):
+        return clean
+    seen = raw.get("seen")
+    if isinstance(seen, (list, tuple, set)):
+        for dialogue_id in seen:
+            if (isinstance(dialogue_id, str) and dialogue_id in DIALOGUE_IDS
+                    and dialogue_id not in clean["seen"]):
+                clean["seen"].append(dialogue_id)
+    flags = raw.get("flags")
+    if isinstance(flags, dict):
+        for key, value in flags.items():
+            if len(clean["flags"]) >= MAX_SAVE_ENTRIES:
+                break
+            name = str(key).strip().lower()[:48]
+            if name:
+                clean["flags"][name] = bool(value)
+    return clean
+
+
+def _clean_shop_state(raw) -> dict:
+    """Limited-stock counters only for real item IDs."""
+    clean = default_shop_state()
+    if not isinstance(raw, dict):
+        return clean
+    records = raw.get("purchases")
+    if isinstance(records, dict):
+        for key, value in records.items():
+            if get_item(key) is None:
+                continue
+            if len(clean["purchases"]) >= MAX_SAVE_ENTRIES:
+                break
+            count = _clean_count(value, 0, 9999)
+            if count:
+                clean["purchases"][str(key)] = count
+    return clean
+
+
+def _clean_upgrade_state(raw) -> dict:
+    """Forge levels only for real equipment, clamped to +0..+5."""
+    clean = default_upgrade_state()
+    if not isinstance(raw, dict):
+        return clean
+    records = raw.get("levels")
+    if isinstance(records, dict):
+        for key, value in records.items():
+            item = get_item(key)
+            if item is None or not item.is_equipment:
+                continue
+            if len(clean["levels"]) >= MAX_SAVE_ENTRIES:
+                break
+            level = _clean_count(value, 0, MAX_UPGRADE_LEVEL)
+            if level:
+                clean["levels"][str(key)] = level
+    return clean
+
+
+def _clean_quest_flags(raw) -> dict:
+    """Forward-compatible quest flags: arbitrary keys, bounded and boolean."""
+    clean: dict[str, bool] = {}
+    if isinstance(raw, dict):
+        for key, value in raw.items():
+            if len(clean) >= MAX_SAVE_ENTRIES:
+                break
+            name = str(key).strip().lower()[:48]
+            if name:
+                clean[name] = bool(value)
+    return clean
+
+
 def canonical_data(raw) -> dict:
     """Return a well-shaped profile built from arbitrary loaded data."""
     data = default_data()
@@ -244,6 +377,14 @@ def canonical_data(raw) -> dict:
     data["inventory"] = _clean_inventory(
         raw.get("inventory"), data["player"]["level"]
     )
+
+    # Additive Phase 8 sections.  Missing keys fall back to empty defaults, so
+    # Phase 5/6/7 profiles keep loading unchanged and the version stays 1.
+    data["npc_state"] = _clean_npc_state(raw.get("npc_state"))
+    data["dialogue"] = _clean_dialogue_state(raw.get("dialogue"))
+    data["shop"] = _clean_shop_state(raw.get("shop"))
+    data["upgrades"] = _clean_upgrade_state(raw.get("upgrades"))
+    data["quest_flags"] = _clean_quest_flags(raw.get("quest_flags"))
 
     version = int(_number(raw.get("version", SAVE_VERSION), SAVE_VERSION))
     data["version"] = max(1, version)
@@ -358,8 +499,13 @@ __all__ = [
     "SaveManager",
     "canonical_data",
     "default_data",
+    "default_dialogue_state",
     "default_inventory_data",
+    "default_npc_state",
     "default_player_data",
+    "default_quest_flags",
     "default_save_file",
+    "default_shop_state",
+    "default_upgrade_state",
     "load_profile",
 ]

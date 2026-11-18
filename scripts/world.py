@@ -80,7 +80,8 @@ class World:
     def update(self, dt: float) -> None:
         pass
 
-    def draw(self, target: pygame.Surface, camera, player, enemies=()) -> None:
+    def draw(self, target: pygame.Surface, camera, player, enemies=(),
+             npcs=()) -> None:
         ox, oy = camera.offset
         view = camera.visible_rect(140)
 
@@ -109,6 +110,12 @@ class World:
             if -160 <= enemy.x - ox <= self.canvas_w + 160 \
                     and -220 <= enemy.y - oy <= self.canvas_h + 220:
                 drawables.append((enemy.sort_y, enemy))
+        # Phase 8 survivors share the same depth-sorted pass as props and
+        # enemies, so a character standing behind a stall is correctly occluded.
+        for npc in npcs:
+            if -160 <= npc.x - ox <= self.canvas_w + 160 \
+                    and -220 <= npc.y - oy <= self.canvas_h + 220:
+                drawables.append((npc.sort_y, npc))
         drawables.sort(key=lambda item: item[0])
 
         for _, item in drawables:

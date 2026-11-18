@@ -1,0 +1,13 @@
+{
+  "id": "veil_keeper",
+  "name": "THE VEIL KEEPER",
+  "title": "KEEPER OF OLD SILENCE",
+  "x": 1578.0,
+  "y": 966.0,
+  "facing": "down",
+  "radius": 86.0,
+  "sheet": "npcs/veil_keeper.png",
+  "service": "story",
+  "dialogue": "veil_keeper",
+  "accent": [176, 126, 244]
+}

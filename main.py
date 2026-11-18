@@ -6,17 +6,22 @@ import sys
 
 import pygame
 
+from scripts.blacksmith_manager import BlacksmithManager
+from scripts.dialogue_manager import DialogueManager
 from scripts.equipment_manager import EquipmentManager
 from scripts.exp_manager import ExpManager
+from scripts.interaction_manager import InteractionManager
 from scripts.inventory_manager import InventoryManager
 from scripts.item_database import ITEM_DIR  # noqa: F401  (data ships with game)
 from scripts.loot_manager import LootManager
+from scripts.npc_manager import NPCManager
 from scripts.player_stats import PlayerStats
 from scripts.progression_config import (
     LEVEL_UP_HIT_STOP,
     LEVEL_UP_SURGE_MULT,
     LEVEL_UP_SURGE_TIME,
 )
+from scripts.shop_manager import ShopManager
 from scripts.skill_tree_manager import SkillTreeManager
 
 from settings import FPS, SCREEN_H, SCREEN_W
@@ -33,10 +38,13 @@ from scripts.pixel_font import draw_text
 from scripts.player import Player
 from scripts.progression_manager import ProgressionManager
 from scripts.skill_manager import SkillManager
+from scripts.ui.blacksmith_screen import BlacksmithScreen
 from scripts.ui.character_screen import CharacterScreen
+from scripts.ui.dialogue_screen import DialogueScreen
 from scripts.ui.inventory_screen import InventoryScreen
 from scripts.ui.level_select import LevelSelect
 from scripts.ui.main_menu import MainMenu
+from scripts.ui.merchant_screen import MerchantScreen
 from scripts.ui.notifications import Notifications
 from scripts.ui.skill_tree_screen import SkillTreeScreen
 from scripts.ui.victory_screen import VictoryScreen
@@ -55,6 +63,9 @@ PLAY = "PLAY"
 INVENTORY = "INVENTORY"
 CHARACTER = "CHARACTER"
 SKILL_TREE = "SKILL_TREE"
+DIALOGUE = "DIALOGUE"
+SHOP = "SHOP"
+BLACKSMITH = "BLACKSMITH"
 VICTORY = "VICTORY"
 
 
@@ -71,6 +82,10 @@ class Game:
 
         self.assets = Assets()
         self.world = World(self.assets, (SCREEN_W, SCREEN_H))
+        # Phase 8: the survivors live in the same village as the enemies.
+        # Their foot boxes join the collision world *before* the combat
+        # manager rolls its opening group, so nothing spawns on top of them.
+        self.npcs = NPCManager(self.assets, self.world.collision)
         self.player = Player(self.assets, SPAWN[0], SPAWN[1], SPAWN_FACING)
         self.camera = Camera(self.player.x, self.player.y)
         self.camera.snap(self.player.x + self.player.look[0],
@@ -120,6 +135,33 @@ class Game:
         self.tree.apply(skills=self.skills, combat=self.combat,
                         player=self.player)
         self.loot = LootManager(self.world, notify=self.notify)
+
+        # ---- Phase 8: the survivors' hub ------------------------------
+        # All five managers share the one save profile and the one inventory;
+        # there is no parallel gold, satchel or upgrade table.
+        self.quest_flags: dict[str, bool] = {}
+        self.dialogue = DialogueManager(on_change=self._save_village)
+        self.shop = ShopManager(
+            self.inventory, notify=self.notify,
+            is_equipped=self.equipment.is_equipped,
+            on_change=self._save_village,
+        )
+        self.blacksmith = BlacksmithManager(
+            self.inventory, notify=self.notify, on_change=self._forge_changed,
+        )
+        self.shop.upgrades = self.blacksmith
+        # Restore the additive village section through the same validation the
+        # disk loader uses, then rebuild equipment stats from forged levels.
+        self.npcs.load_state(self.progression.npc_state())
+        self.dialogue.load_state(self.progression.dialogue_state())
+        self.shop.load_state(self.progression.shop_state())
+        self.blacksmith.load_state(self.progression.upgrade_state())
+        self.quest_flags = self.progression.quest_flags()
+        self.equipment.attach(upgrades=self.blacksmith)
+        self.interaction = InteractionManager(
+            self.npcs, self.world.collision, self.loot
+        )
+
         self.inventory_screen = InventoryScreen(
             self.player, self.inventory, self.equipment, self.stats,
             self.skills, notify=self.notify, on_drop=self._drop_to_world,
@@ -130,6 +172,13 @@ class Game:
         )
         self.tree_screen = SkillTreeScreen(self.player, self.tree,
                                            notify=self.notify)
+        self.dialogue_screen = DialogueScreen(self.dialogue, self.npcs,
+                                              notify=self.notify)
+        self.merchant_screen = MerchantScreen(self.shop, self.inventory,
+                                              notify=self.notify)
+        self.blacksmith_screen = BlacksmithScreen(self.blacksmith,
+                                                  self.inventory,
+                                                  notify=self.notify)
         # Loot must not replace the Void skill kill reward.
         _skill_kill = self.combat.on_kill
 
@@ -224,6 +273,30 @@ class Game:
     def _save_inventory(self) -> None:
         self.progression.save_inventory(self.inventory, self.equipment)
 
+    def _save_village(self) -> None:
+        """Persist NPC, dialogue, shop, forge and quest state additively."""
+        self.progression.save_village(
+            npcs=self.npcs,
+            dialogue=self.dialogue,
+            shop=self.shop,
+            upgrades=self.blacksmith,
+            quest_flags=self.quest_flags,
+        )
+
+    def _forge_changed(self) -> None:
+        """A forge level changes live stats and must never apply twice."""
+        self.equipment.recompute()
+        self._save_village()
+
+    def set_quest_flag(self, key: str, value: bool = True) -> bool:
+        """Forward-compatible hook for future village quests."""
+        name = str(key).strip().lower()
+        if not name or len(self.quest_flags) >= 96:
+            return False
+        self.quest_flags[name[:48]] = bool(value)
+        self._save_village()
+        return True
+
     def _save_progression(self) -> None:
         self.progression.save_progression(self.exp)
 
@@ -317,6 +390,65 @@ class Game:
         self._hide_mouse()
 
     # ------------------------------------------------------------------
+    # Village hub: conversation, trade and forge
+    # ------------------------------------------------------------------
+    def open_dialogue(self, npc) -> None:
+        if self.state != PLAY or self.player.combat.dead:
+            return
+        if not self.dialogue.open(npc.dialogue_id, npc.id):
+            return
+        self.state = DIALOGUE
+        self.dialogue_screen.open()
+        self._save_village()
+        self._show_mouse()
+
+    def close_dialogue(self) -> None:
+        if self.state != DIALOGUE:
+            return
+        self.dialogue.close()
+        self.state = PLAY
+        self._hide_mouse()
+        self._save_village()
+
+    def _route_dialogue_action(self, action: str) -> None:
+        """Handle the page/choice actions emitted by DialogueManager."""
+        if action == "open_shop":
+            self.state = SHOP
+            self.merchant_screen.open()
+            self._show_mouse()
+        elif action == "open_blacksmith":
+            self.state = BLACKSMITH
+            self.blacksmith_screen.open()
+            self._show_mouse()
+        else:
+            self.close_dialogue()
+
+    def close_shop(self) -> None:
+        if self.state != SHOP:
+            return
+        self.merchant_screen.confirm = False
+        self.state = PLAY
+        self._hide_mouse()
+        self._save_village()
+
+    def close_forge(self) -> None:
+        if self.state != BLACKSMITH:
+            return
+        self.blacksmith_screen.confirm = False
+        self.state = PLAY
+        self._hide_mouse()
+        self._save_village()
+
+    def _context_interact(self) -> None:
+        """One ``G`` press: talk when a survivor is reachable, else loot."""
+        action = self.interaction.interact(self.player, self.inventory)
+        if not action.startswith("talk:"):
+            return
+        npc = self.npcs.get(action[5:])
+        if npc is not None:
+            self.open_dialogue(npc)
+
+    # ------------------------------------------------------------------
     def _ui_event(self, event: pygame.event.Event) -> pygame.event.Event:
         """Map window mouse coordinates onto the fixed 1280x720 canvas."""
         if event.type not in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
@@ -389,6 +521,22 @@ class Game:
                 self.close_skill_tree()
             return
 
+        if self.state == DIALOGUE:
+            action = self.dialogue_screen.handle_event(self._ui_event(event))
+            if action:
+                self._route_dialogue_action(action)
+            return
+
+        if self.state == SHOP:
+            if self.merchant_screen.handle_event(self._ui_event(event)) == "close":
+                self.close_shop()
+            return
+
+        if self.state == BLACKSMITH:
+            if self.blacksmith_screen.handle_event(self._ui_event(event)) == "close":
+                self.close_forge()
+            return
+
         if self.state == VICTORY:
             action = self.victory.handle_event(self._ui_event(event))
             if action == "continue":
@@ -426,7 +574,7 @@ class Game:
                 self.open_skill_tree()
                 return
             if event.key == pygame.K_g:
-                self.loot.try_pickup(self.player, self.inventory)
+                self._context_interact()
                 return
             if event.key == pygame.K_ESCAPE and not IS_WEB:
                 self.running = False
@@ -465,12 +613,18 @@ class Game:
     # ------------------------------------------------------------------
     def update(self, dt: float) -> None:
         self.notifications.update(dt)
-        if self.state in (INVENTORY, CHARACTER, SKILL_TREE):
-            # Gameplay is fully frozen while any character overlay is open.
+        # Idle animation continues even while an overlay freezes gameplay.
+        self.npcs.update(dt)
+        if self.state in (INVENTORY, CHARACTER, SKILL_TREE,
+                          DIALOGUE, SHOP, BLACKSMITH):
+            # Gameplay is fully frozen while any character/village UI is open.
             screen = (
                 self.inventory_screen if self.state == INVENTORY else
                 self.character_screen if self.state == CHARACTER else
-                self.tree_screen
+                self.tree_screen if self.state == SKILL_TREE else
+                self.dialogue_screen if self.state == DIALOGUE else
+                self.merchant_screen if self.state == SHOP else
+                self.blacksmith_screen
             )
             screen.update(dt)
             return
@@ -530,7 +684,8 @@ class Game:
             self.victory.draw(self.canvas)
             self.notifications.draw(self.canvas)
             return
-        if self.state in (INVENTORY, CHARACTER, SKILL_TREE):
+        if self.state in (INVENTORY, CHARACTER, SKILL_TREE,
+                          DIALOGUE, SHOP, BLACKSMITH):
             self._draw_world()
             self.level.draw_world_overlay(self.canvas, self.camera)
             self.skills.draw_world(self.canvas, self.camera)
@@ -544,8 +699,14 @@ class Game:
                 self.inventory_screen.draw(self.canvas)
             elif self.state == CHARACTER:
                 self.character_screen.draw(self.canvas)
-            else:
+            elif self.state == SKILL_TREE:
                 self.tree_screen.draw(self.canvas)
+            elif self.state == DIALOGUE:
+                self.dialogue_screen.draw(self.canvas)
+            elif self.state == SHOP:
+                self.merchant_screen.draw(self.canvas)
+            else:
+                self.blacksmith_screen.draw(self.canvas)
             self.notifications.draw(self.canvas)
             return
 
@@ -562,6 +723,10 @@ class Game:
                       self.skills, stage=self.level, boss=self.level.boss,
                       exp=self.exp)
         self.loot.draw_prompt(self.canvas, self.player, self.camera)
+        reachable = self.interaction.find(self.player)
+        if reachable is not None:
+            InteractionManager.draw_prompt(self.canvas, self.player,
+                                           reachable, self.camera)
         self.notifications.draw(self.canvas)
         self.level.draw_overlay(self.canvas)
         if self.debug:
@@ -614,7 +779,7 @@ class Game:
 
     def _draw_world(self) -> None:
         self.world.draw(self.canvas, self.camera, self.player,
-                        self.combat.enemies)
+                        self.combat.enemies, npcs=self.npcs.npcs)
         self.atmosphere.draw(self.canvas, self.camera, self.player)
 
     # ------------------------------------------------------------------
